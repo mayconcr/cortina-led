@@ -31,8 +31,8 @@ Legenda: `[ ]` pendente · `[x]` concluída · 🛑 checkpoint (pare e espere o 
 🛑 Explique ao usuário o que foi encontrado, ainda sem enviar comando.
 
 ## Fase 2: Comandos básicos (CLI)
-- [ ] 2.1 `ferramentas/cortina.py`, com subcomandos `ligar`, `desligar`, `cor R G B [--brilho %]`, `efeito N [--velocidade V]` e `versao`. Usa fila de escrita e assina notificações antes de escrever.
-- [ ] 2.2 Validações no código: efeito só de 1 a 10, cor em 5 bits, brilho limitado. Testes unitários dos pacotes gerados contra os exemplos do `PROTOCOLO.md`.
+- [x] 2.1 `ferramentas/cortina.py`, com subcomandos `ligar`, `desligar`, `cor R G B [--brilho %]`, `efeito N [--velocidade V]` e `versao`. Usa fila de escrita e assina notificações antes de escrever.
+- [x] 2.2 Validações no código: efeito só de 1 a 10, cor em 5 bits, brilho limitado. Testes unitários dos pacotes gerados contra os exemplos do `PROTOCOLO.md`.
 - [ ] 2.3 Roteiro com o usuário, **um comando por vez**, perguntando o que ele viu: desligar → ligar → vermelho → verde → azul → branco a 30% → efeitos 1 a 10, anotando o nome que o usuário der a cada um.
 - [ ] 2.4 Se TYPE2 não funcionar: mostrar os bytes TYPE1 (§6), pedir permissão e testar só liga/desliga.
 

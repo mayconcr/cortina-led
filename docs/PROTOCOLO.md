@@ -136,7 +136,7 @@ Pior caso, 400 pixels todos diferentes: 29 pacotes. Com run-length, bem menos.
 
 ## 6. Comandos TYPE1 (só se a cortina não for TYPE2)
 - Liga: `06 4C 45 44 4F 4E 00 …` ("LEDON") · Desliga: `06 4C 45 44 4F 46 46 00 …` ("LEDOFF")
-- Cor: `07 43 4F 4C 4F 00 Gx Rx Bx 00 …`, com verde no byte 5, vermelho no 6 e azul no 7, em 5 bits
+- Cor: `07 43 4F 4C 4F Gx Rx Bx 00 …`, com verde no byte 5, vermelho no 6 e azul no 7, em 5 bits (offsets 5/6/7 conferidos no `const.py` da integração HA; N = 07 = 4 letras + 3 parâmetros). Exemplo vermelho: `07 43 4F 4C 4F 00 1F 00 00 …`
 - Efeito: `06 4C 49 47 48 54 0C 00 …` ("LIGHT") seguido de 3 pacotes CMD, com `NN` (1–10) no byte 4:
   - `0E 45 46 46 NN 07 03 FF 00 00 FF 80 00 FF FF 00`
   - `0E 45 46 46 NN 07 13 00 FF 00 00 FF FF 00 00 FF`
