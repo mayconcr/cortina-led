@@ -42,9 +42,10 @@ Só entra aqui o que foi **observado** na cortina real, com data. Hipóteses fic
 | 10 | Efeito 10 (provisório) | aceito pela cortina (`EFF OK` ×3) a 40%, vel. 8; o usuário viu a troca a cada ~8 s e pediu que eu nomeasse, mas eu não enxergo a cortina — renomear depois |
 
 ## Mapeamento da grade
-- Índice 0 fica em:
-- Sentido (colunas/linhas, zigue-zague?):
-- Fórmula `mapear(col, lin)`:
+- Não há índice linear: cada pixel vai como `05 LINHA COLUNA G R B` (confirmado em 2026-11-16 com os 4 cantos).
+- Origem `(linha 0, coluna 0)` = **canto superior esquerdo**, olhando a cortina de frente. Linha cresce para baixo (0–19), coluna cresce para a direita (0–19). Sem zigue-zague: o controlador resolve.
+- Cantos vistos: `(0,0)` vermelho em cima à esquerda · `(0,19)` verde em cima à direita · `(19,0)` azul embaixo à esquerda · `(19,19)` amarelo embaixo à direita.
+- Fórmula `mapear(col, lin)` → bytes `(lin, col)`, com `col` e `lin` de 0 a 19 (`ferramentas/protocolo.py`).
 
 ## Desempenho
 - Tempo de um quadro completo (pior caso):
@@ -75,3 +76,5 @@ Só entra aqui o que foi **observado** na cortina real, com data. Hipóteses fic
 - 2026-11-16 01:25: **Fase 2 concluída.** Ligar, desligar, cor sólida (R, G, B e branco a 30%) e efeitos 1–10 funcionam pelo `cortina.py` (subcomandos `ligar`, `desligar`, `cor`, `efeito` já usam o preâmbulo + handshake; branco forte bloqueado acima de 40%). Nomes dos efeitos ficaram provisórios ("Efeito N"). **A Fase 3 do PLANO precisa ser refeita**: DOOD/DOOT não existem nesta cortina; o desenho é `SMVEW 01` + um pacote AES por pixel (`05 X Y R G B`) na `…960B` + `SMVEW 02` + `MODE 03` (PROTOCOLO §5bis).
 - 2026-11-16 01:28: **Fase 3, primeiro pixel.** `SMVEW 01` + pixel `05 07 05 FD 54 01` + `SMVEW 02` + `MODE 03`, tudo com ACK: aparece **um LED verde** (logo a cor é **G R B**: `FD 54 01` = muito verde, pouco vermelho) **andando da direita para a esquerda** (`MODE 03` = rolagem horizontal), na altura ~8 de cima. Como rola na horizontal, a linha fica fixa: se a altura 8 estiver certa, o **primeiro** byte (7, base 0) seria a linha e o segundo a coluna — a confirmar com dois pixels de cores diferentes. Falta também achar um modo parado (testar sem `MODE`).
 - 2026-11-16 01:31: **Autorização do usuário para a Fase 3** (vale só nesta fase): pixels `05 X Y G R B` entre `SMVEW 01` e `SMVEW 02`, X e Y de 0 a 19, brilho até 40%, nunca 400 LEDs em branco, sem `MODE` com valores fora da captura (outros valores de `MODE` exigem pedido à parte). Continuo anunciando cada teste e perguntando o resultado.
+- 2026-11-16 01:33: Dois pixels sem `MODE`: `(2,10)` vermelho e `(15,10)` azul → **vermelho na altura 3, azul na altura 16, mesma coluna, parados; o verde anterior sumiu**. Conclusões: o **1º byte é a linha, base 0, a partir de cima**; o 2º byte é a coluna; `SMVEW 01` **apaga o desenho anterior**; sem `MODE 03` o desenho fica **parado**.
+- 2026-11-16 01:36: **Mapa da grade confirmado** com os 4 cantos em cores diferentes: origem em cima à esquerda, 1º byte = linha (para baixo), 2º byte = coluna (para a direita), ambos base 0. Todos os 4 LEDs acenderam exatamente nos cantos.

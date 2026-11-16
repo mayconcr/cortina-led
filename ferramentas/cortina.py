@@ -137,6 +137,18 @@ def montar(args) -> list[Escrita]:
     elif args.comando == "roteiro":
         for token in args.passos:
             fila += passo(token)
+    elif args.comando in ("quadro", "apagar"):
+        # Desenho (PROTOCOLO §5bis): SMVEW 01 apaga o anterior, um pacote por pixel aceso, SMVEW 02 fecha.
+        for token in PREAMBULO:
+            fila += passo(token)
+        fila += passo("smvew:1")
+        if args.comando == "quadro":
+            import json
+
+            grade = json.loads(Path(args.arquivo).read_text())
+            pacotes = p.quadro(grade, args.brilho)
+            fila += [Escrita(PIX, pk, f"pixel lin {pk[1]} col {pk[2]}") for pk in pacotes]
+        fila += passo("smvew:2")
     else:
         raise SystemExit(f"comando desconhecido: {args.comando}")
     return fila
@@ -185,7 +197,11 @@ def passo(token: str) -> list[Escrita]:
         x, y, r, g, b = args[:5]
         brilho = args[5] if len(args) > 5 else 40
         return [Escrita(PIX, p.pixel_xy(x, y, r, g, b, brilho), f"pixel ({x},{y}) = {r},{g},{b} @{brilho}% -> …960B")]
-    raise SystemExit(f"passo desconhecido: {token!r} (use ver, leds, ledoff, ledon, hora, cor:R,G,B, efeito:N, imag:I, mode, smvew:1|2, pixel:X,Y,R,G,B)")
+    if nome == "borda":
+        r, g, b = args[:3] if args else (0, 255, 0)
+        brilho = args[3] if len(args) > 3 else p.BRILHO_MAX_DESENHO
+        return [Escrita(PIX, p.pixel(c, l, r, g, b, brilho), f"borda col {c} lin {l}") for c, l in p.borda()]
+    raise SystemExit(f"passo desconhecido: {token!r} (use ver, leds, ledoff, ledon, hora, auth, pausa:S, cor:R,G,B, efeito:N, imag:I, mode, smvew:1|2, pixel:LIN,COL,R,G,B, borda:R,G,B)")
 
 
 def mostrar(fila: list[Escrita]) -> None:
@@ -290,6 +306,9 @@ async def enviar(args, fila: list[Escrita]) -> int:
         com_resposta = args.com_resposta or args.tipo == "REAL"  # o que foi confirmado na cortina em 2026-11-16
         modo = "com resposta (ATT Write Request)" if com_resposta else "sem resposta (ATT Write Command, como o app oficial nas capturas)"
         print(f"[modo] escrita {modo}")
+        pausa = max(args.pausa_ms / 1000, PAUSA_ENTRE_ESCRITAS)
+        pix_inicio = pix_fim = None
+        pix_total = 0
         for i, e in enumerate(fila, 1):  # fila única, uma escrita por vez
             if e.caracteristica == AUTH:
                 if not await autenticar(cliente, caixa_ae02):
@@ -301,11 +320,20 @@ async def enviar(args, fila: list[Escrita]) -> int:
                 await asyncio.sleep(e.puro[0])
                 continue
             alvo = {CMD: "CMD ", DATA: "DATA", PIX: "PIX "}[e.caracteristica]
+            resp = com_resposta and not (e.caracteristica == PIX and args.pix_sem_resposta)
             t0 = time.monotonic()
-            await cliente.write_gatt_char(e.caracteristica, e.fio, response=com_resposta)
-            ack = "ACK da cortina" if com_resposta else "sem ack"
+            if e.caracteristica == PIX:
+                pix_inicio = t0 if pix_inicio is None else pix_inicio
+                pix_total += 1
+            await cliente.write_gatt_char(e.caracteristica, e.fio, response=resp)
+            if e.caracteristica == PIX:
+                pix_fim = time.monotonic()
+            ack = "ACK da cortina" if resp else "sem ack"
             print(f"[envio {i}/{len(fila)}] [{alvo}] {e.rotulo}  ({(time.monotonic() - t0) * 1000:.0f} ms, {ack})")
-            await asyncio.sleep(PAUSA_ENTRE_ESCRITAS)
+            await asyncio.sleep(pausa)
+        if pix_total:
+            duracao = pix_fim - pix_inicio
+            print(f"[tempo] {pix_total} pixels em {duracao:.2f} s ({duracao / pix_total * 1000:.0f} ms por pixel, pausa de {pausa * 1000:.0f} ms incluída entre eles)")
         print(f"[espera] {args.espera:.0f} s por notificações...")
         await asyncio.sleep(args.espera)
         try:
@@ -324,6 +352,8 @@ def main() -> int:
     ap.add_argument("--com-resposta", action="store_true", help="usa escrita com resposta (padrão: sem resposta, como o app oficial nas capturas)")
     ap.add_argument("--nome", default="IDL-6A9E5C")
     ap.add_argument("--cifra", choices=tuple(CIFRAS), default="aes", help="cifra da CMD: aes (padrão) ou tiro (PROTOCOLO §2)")
+    ap.add_argument("--pix-sem-resposta", action="store_true", help="pixels (…960B) com escrita sem resposta, como o app; o resto segue o modo normal")
+    ap.add_argument("--pausa-ms", type=int, default=30, help="pausa entre escritas em ms (mínimo 30, CLAUDE.md regra 6)")
     ap.add_argument("--auth", action="store_true", help="faz o handshake JieLi no 0xAE00 antes da fila (PROTOCOLO §5ter)")
     sub = ap.add_subparsers(dest="comando", required=True)
     sub.add_parser("ligar")
@@ -340,6 +370,10 @@ def main() -> int:
     sub.add_parser("versao")
     r = sub.add_parser("roteiro", help="sequência de passos do PROTOCOLO §5bis, ex.: roteiro ver leds ledoff")
     r.add_argument("passos", nargs="+")
+    q = sub.add_parser("quadro", help="desenha um quadro 20×20 de um JSON: grade[linha][coluna] = [r,g,b] ou null")
+    q.add_argument("arquivo")
+    q.add_argument("--brilho", type=int, default=p.BRILHO_MAX_DESENHO, help="0–40 %% (padrão 40)")
+    sub.add_parser("apagar", help="apaga o desenho (SMVEW 01 + SMVEW 02, sem pixels)")
     args = ap.parse_args()
     global CIFRA_ATIVA
     CIFRA_ATIVA = args.cifra

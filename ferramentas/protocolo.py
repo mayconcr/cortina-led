@@ -178,6 +178,59 @@ def pixel_xy(x: int, y: int, r: int, g: int, b: int, brilho: int = 40) -> bytes:
     return completar(bytes([0x05, x, y, canais[1], canais[0], canais[2]]))
 
 
+# ---------- grade 20×20 (mapa confirmado na cortina em 2026-11-16) ----------
+
+COLUNAS = LINHAS = 20
+BRILHO_MAX_DESENHO = 40  # % — CLAUDE.md regra 5
+
+
+def mapear(col: int, lin: int) -> tuple[int, int]:
+    """(coluna, linha) da grade -> (1º byte, 2º byte) do pacote de pixel.
+
+    Origem no canto superior esquerdo, olhando a cortina de frente; coluna cresce para a direita,
+    linha cresce para baixo; ambas de 0 a 19. O pacote leva primeiro a LINHA e depois a COLUNA.
+    """
+    if not isinstance(col, int) or not 0 <= col < COLUNAS:
+        raise ValueError(f"coluna precisa ser de 0 a {COLUNAS - 1}, veio {col!r}")
+    if not isinstance(lin, int) or not 0 <= lin < LINHAS:
+        raise ValueError(f"linha precisa ser de 0 a {LINHAS - 1}, veio {lin!r}")
+    return lin, col
+
+
+def pixel(col: int, lin: int, r: int, g: int, b: int, brilho: int = BRILHO_MAX_DESENHO) -> bytes:
+    """Pacote de um pixel da grade, com o limite de brilho de desenho (≤ 40 %)."""
+    if not isinstance(brilho, int) or not 0 <= brilho <= BRILHO_MAX_DESENHO:
+        raise ValueError(f"brilho de desenho precisa ser de 0 a {BRILHO_MAX_DESENHO} %, veio {brilho!r}")
+    primeiro, segundo = mapear(col, lin)
+    return pixel_xy(primeiro, segundo, r, g, b, brilho)
+
+
+def quadro(grade: list[list], brilho: int = BRILHO_MAX_DESENHO) -> list[bytes]:
+    """Pacotes de pixel de um quadro 20×20. `grade[lin][col]` é [r, g, b] ou None/[0,0,0] (apagado).
+
+    Só manda os pixels acesos: `SMVEW 01` já apaga o desenho anterior.
+    """
+    if len(grade) != LINHAS or any(len(linha) != COLUNAS for linha in grade):
+        raise ValueError(f"o quadro precisa ter {LINHAS} linhas de {COLUNAS} colunas")
+    pacotes = []
+    for lin, linha in enumerate(grade):
+        for col, cor in enumerate(linha):
+            if not cor or not any(cor):
+                continue
+            r, g, b = cor
+            pacotes.append(pixel(col, lin, r, g, b, brilho))
+    return pacotes
+
+
+def borda() -> list[tuple[int, int]]:
+    """As 76 posições (col, lin) do contorno da grade, em sentido horário a partir de (0, 0)."""
+    cima = [(c, 0) for c in range(COLUNAS)]
+    direita = [(COLUNAS - 1, l) for l in range(1, LINHAS)]
+    baixo = [(c, LINHAS - 1) for c in range(COLUNAS - 2, -1, -1)]
+    esquerda = [(0, l) for l in range(LINHAS - 2, 0, -1)]
+    return cima + direita + baixo + esquerda
+
+
 # ---------- TYPE2 (PROTOCOLO.md §5), só os comandos básicos ----------
 
 def turn(ligar: bool) -> bytes:

@@ -128,6 +128,44 @@ class TestCapturaIphone(unittest.TestCase):
             p.smvew(3)
 
 
+class TestGrade(unittest.TestCase):
+    """Mapa confirmado na cortina em 2026-11-16: pacote = 05 LINHA COLUNA G R B, origem em cima à esquerda."""
+
+    def test_cantos_como_vistos_na_cortina(self):
+        self.assertEqual(p.pixel(0, 0, 255, 0, 0)[:6], hx("05 00 00 00 66 00"))      # vermelho, em cima à esquerda
+        self.assertEqual(p.pixel(19, 0, 0, 255, 0)[:6], hx("05 00 13 66 00 00"))     # verde, em cima à direita
+        self.assertEqual(p.pixel(0, 19, 0, 0, 255)[:6], hx("05 13 00 00 00 66"))     # azul, embaixo à esquerda
+        self.assertEqual(p.pixel(19, 19, 255, 255, 0)[:6], hx("05 13 13 66 66 00"))  # amarelo, embaixo à direita
+
+    def test_mapear(self):
+        self.assertEqual(p.mapear(10, 2), (2, 10))
+        for col, lin in ((20, 0), (0, 20), (-1, 0)):
+            with self.assertRaises(ValueError):
+                p.mapear(col, lin)
+
+    def test_brilho_de_desenho_limitado(self):
+        with self.assertRaises(ValueError):
+            p.pixel(0, 0, 255, 255, 255, brilho=41)
+        self.assertEqual(max(p.pixel(0, 0, 255, 255, 255)[3:6]), 102)
+
+    def test_borda(self):
+        b = p.borda()
+        self.assertEqual(len(b), 76)
+        self.assertEqual(len(set(b)), 76)
+        self.assertTrue(all(c in (0, 19) or l in (0, 19) for c, l in b))
+
+    def test_quadro(self):
+        grade = [[None] * 20 for _ in range(20)]
+        grade[3][7] = [255, 0, 0]
+        grade[4][7] = [0, 0, 0]
+        pacotes = p.quadro(grade)
+        self.assertEqual(len(pacotes), 1)
+        self.assertEqual(pacotes[0][:6], hx("05 03 07 00 66 00"))
+        self.assertEqual(len(p.quadro([[[255, 255, 255]] * 20 for _ in range(20)])), 400)
+        with self.assertRaises(ValueError):
+            p.quadro([[None] * 20 for _ in range(19)])
+
+
 class TestSeguranca(unittest.TestCase):
     def test_efeito_fora_de_1_a_10_da_erro(self):
         for n in (0, 11, 12, 255, -1):
