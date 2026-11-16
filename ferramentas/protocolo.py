@@ -85,6 +85,91 @@ def efeito_type1(n: int) -> list[bytes]:
     return [light(), *eff(n)]
 
 
+# ---------- Comandos reais desta cortina (PROTOCOLO.md §5bis, captura do app em 2026-11-16) ----------
+
+def ver() -> bytes:
+    """Pede a versão: 03 'VER'. A cortina responde por NOTIFY com 05 'VER' 08 01."""
+    return completar(b"\x03VER")
+
+
+def leds(n: int = 0) -> bytes:
+    """05 'LEDS' NN — o app manda LEDS 00 duas vezes logo após conectar. Função desconhecida."""
+    _canal(n, "LEDS")
+    return completar(b"\x05LEDS" + bytes([n]))
+
+
+def ledon_05() -> bytes:
+    """Liga como o app faz nesta cortina: 05 'LEDON' (N = 5)."""
+    return completar(b"\x05LEDON")
+
+
+def hora(dia_semana: int, h: int, m: int, s: int) -> bytes:
+    """08 'TIME' DW HH MM SS, como o app (regra 4 do CLAUDE.md: só com pedido explícito do usuário)."""
+    for v, nome, maximo in ((dia_semana, "dia da semana", 7), (h, "hora", 23), (m, "minuto", 59), (s, "segundo", 59)):
+        if not isinstance(v, int) or not 0 <= v <= maximo:
+            raise ValueError(f"{nome} fora da faixa 0..{maximo}: {v!r}")
+    return completar(b"\x08TIME" + bytes([dia_semana, h, m, s]))
+
+
+def colo8(r: int, g: int, b: int, brilho: int = 100) -> bytes:
+    """Cor sólida como o app faz nesta cortina: 07 'COLO' G R B em 8 bits. O brilho (%) escala antes."""
+    _porcento(brilho, "brilho")
+    canais = [(_canal(v, n) * brilho // 100) & 0xFF for v, n in ((r, "R"), (g, "G"), (b, "B"))]
+    return completar(b"\x07COLO" + bytes([canais[1], canais[0], canais[2]]))
+
+
+def eff_app(n: int) -> list[bytes]:
+    """Os 3 pacotes EFF exatamente como o app (N = 0F, 0F, 07). ACK esperado: 06 'EFF' 0x 'OK'."""
+    validar_efeito(n)
+    modelos = (
+        "0F 45 46 46 NN 07 03 FF 00 00 FF 80 00 FF FF 00",
+        "0F 45 46 46 NN 07 13 00 FF 00 00 FF FF 00 00 FF",
+        "07 45 46 46 NN 07 21 80 00 FF 00 00 00 00 00 00",
+    )
+    return [bytes.fromhex(m.replace("NN", f"{n:02X}")) for m in modelos]
+
+
+def light_brilho(brilho: int = 50) -> bytes:
+    """06 'LIGHT' BR — brilho em % (o app manda 32 = 50 %). Limite do CLAUDE.md: ≤ 40 % em desenho."""
+    _porcento(brilho, "brilho")
+    return completar(b"\x06LIGHT" + bytes([brilho]))
+
+
+def speed(v: int = 8) -> bytes:
+    """06 'SPEED' SP — velocidade (o app manda 08)."""
+    _porcento(v, "velocidade")
+    return completar(b"\x06SPEED" + bytes([v]))
+
+
+def imag(indice: int) -> bytes:
+    """05 'IMAG' II — animação nativa (1A = 26 = árvore de Natal)."""
+    _canal(indice, "indice")
+    return completar(b"\x05IMAG" + bytes([indice]))
+
+
+def mode(m: int = 3) -> bytes:
+    """05 'MODE' MM — o app manda MODE 03 depois de IMAG e depois do desenho."""
+    _canal(m, "modo")
+    return completar(b"\x05MODE" + bytes([m]))
+
+
+def smvew(fase: int) -> bytes:
+    """06 'SMVEW' 01 abre o envio de pixels na …960B; 06 'SMVEW' 02 fecha."""
+    if fase not in (1, 2):
+        raise ValueError("fase precisa ser 1 (abrir) ou 2 (fechar)")
+    return completar(b"\x06SMVEW" + bytes([fase]))
+
+
+def pixel_xy(x: int, y: int, r: int, g: int, b: int, brilho: int = 40) -> bytes:
+    """Um pixel para a característica …960B (cifrado com AES): 05 X Y R G B. Brilho padrão 40 % (CLAUDE.md)."""
+    _porcento(brilho, "brilho")
+    for v, nome in ((x, "x"), (y, "y")):
+        if not isinstance(v, int) or not 0 <= v <= 20:
+            raise ValueError(f"{nome} precisa ser de 0 a 20, veio {v!r}")
+    canais = [(_canal(v, n) * brilho // 100) & 0xFF for v, n in ((r, "R"), (g, "G"), (b, "B"))]
+    return completar(bytes([0x05, x, y]) + bytes(canais))
+
+
 # ---------- TYPE2 (PROTOCOLO.md §5), só os comandos básicos ----------
 
 def turn(ligar: bool) -> bytes:

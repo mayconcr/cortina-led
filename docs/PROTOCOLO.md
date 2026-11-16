@@ -143,6 +143,23 @@ Pior caso, 400 pixels todos diferentes: 29 pacotes. Com run-length, bem menos.
 - `CT`: `0E 43 54 01 01 00 00 64 00 64 …`. Aparece no início da conexão, mas a função é desconhecida.
 - `TIME`: `15 54 49 4D 45 …` (acerta o relógio). Não é necessário.
 
+## 5bis. O que o app iDeal LED (iOS 2026) manda PARA ESTA CORTINA — captura real de 2026-11-16
+
+Fonte: `capturas/iphone-2026-11-16.pklg` (PacketLogger do iPhone, sessão com `50:A8:06:6A:9E:5C` = `IDL-6A9E5C`), lido com `ferramentas/captura_att.py`. **A chave AES da §2 está correta**: tudo que vai na CMD decifra em ASCII. Diferenças em relação ao resto deste documento:
+
+- **Só os N bytes após o tamanho importam.** O app manda o resto do bloco com lixo (restos do buffer) e a cortina responde ecoando esse lixo. Zeros servem.
+- **Ordem na conexão (preâmbulo):** CCCD NOTIFY on → `03 'VER'` (resposta por NOTIFY: `05 'VER' 08 01` = versão 8.1) → `08 'TIME' DW HH MM SS` (WriteCmd) → `05 'LEDS' 00` (2×, WriteReq) → handshake JieLi no serviço `0xAE00` (`fe dc ba c0 06 00 02 00 01 ef`, `00`+16 B aleatórios, `02 'pass'`, `01`+16 B, `fe dc ba c0 03 00 06 01 ff ff ff ff 01 ef` → resposta de 61 B com o MAC, `fe dc ba c0 07 00 06 02 …`) → só então os comandos de luz. **[A CONFIRMAR]** qual parte do preâmbulo é obrigatória (nossos `LEDOFF`/`TURN` "a seco" não funcionaram).
+- **Liga/desliga:** `06 'LEDOFF'` e **`05 'LEDON'`** (N = 5, não 6 como na §6). WriteReq.
+- **Cor sólida:** `07 'COLO' G R B` em **8 bits** (`00 FF 00` = vermelho, `FF 00 00` = verde, `00 00 FF` = azul). WriteCmd.
+- **Efeito:** 3 pacotes `EFF` com ACK por NOTIFY a cada um, depois `LIGHT` e `SPEED`:
+  `0F 'EFF' NN 07 03 FF 00 00 FF 80 00 FF FF 00` → `06 'EFF' 00 'OK'`
+  `0F 'EFF' NN 07 13 00 FF 00 00 FF FF 00 00 FF` → `06 'EFF' 01 'OK'`
+  `07 'EFF' NN 07 21 80 00 FF` → `06 'EFF' 02 'OK'`
+  `06 'LIGHT' BR` (BR = `32` = 50 %) · `06 'SPEED' SP` (SP = `08`). Os IDs vistos: `03` (1º efeito escolhido) e **`0B` = 11** (2º) — o app usa 11 nesta cortina; nossa regra 1–10 continua até o usuário liberar.
+- **Animação nativa (árvore de Natal):** `05 'IMAG' 1A` + `05 'MODE' 03` + `LIGHT 32` + `SPEED 08`. `1A` = 26 = índice da animação.
+- **Desenho (um pixel por pacote!):** `06 'SMVEW' 01` na CMD → N pacotes de 16 B **AES** na característica **`…960B`** (handle 0x000B), cada um `05 X Y R G B` (X = coluna 1–20?, Y = linha, cor 8 bits) → `06 'SMVEW' 02` → `05 'MODE' 03`. Na captura: 75 pacotes, X de 1 a 18 e Y de 3 a 19, cor `FD 54 01`. **[A CONFIRMAR]** origem e sentido dos eixos.
+- Nenhum `TURN`, `SGLS`, `MULT`, `DOOD`, `DOOT` ou `CT` aparece: os comandos TYPE2 e os de pixel da §5 **não valem** para esta cortina.
+
 ## 6. Comandos TYPE1 (só se a cortina não for TYPE2)
 - Liga: `06 4C 45 44 4F 4E 00 …` ("LEDON") · Desliga: `06 4C 45 44 4F 46 46 00 …` ("LEDOFF")
 - Cor: `07 43 4F 4C 4F Gx Rx Bx 00 …`, com verde no byte 5, vermelho no 6 e azul no 7, em 5 bits (offsets 5/6/7 conferidos no `const.py` da integração HA; N = 07 = 4 letras + 3 parâmetros). Exemplo vermelho: `07 43 4F 4C 4F 00 1F 00 00 …`

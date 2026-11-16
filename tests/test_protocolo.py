@@ -76,6 +76,51 @@ class TestType2(unittest.TestCase):
             p.paleta_data([(0, 0, 0)] * 8)
 
 
+class TestCapturaIphone(unittest.TestCase):
+    """Os bytes úteis (N+1 primeiros) batem com o que o app mandou na captura de 2026-11-16 (§5bis)."""
+
+    def uteis(self, pk: bytes) -> bytes:
+        return pk[: pk[0] + 1]
+
+    def test_preambulo(self):
+        self.assertEqual(self.uteis(p.ver()), hx("03 56 45 52"))
+        self.assertEqual(self.uteis(p.leds(0)), hx("05 4C 45 44 53 00"))
+        self.assertEqual(self.uteis(p.hora(1, 0, 40, 28)), hx("08 54 49 4D 45 01 00 28 1C"))
+
+    def test_liga_desliga(self):
+        self.assertEqual(p.ledoff(), hx("06 4C 45 44 4F 46 46 00 00 00 00 00 00 00 00 00"))
+        self.assertEqual(self.uteis(p.ledon_05()), hx("05 4C 45 44 4F 4E"))
+        self.assertEqual(encrypt(p.ledoff()).hex(), "cbb1fdbfc560d5e453c2cbd928b53fab")  # igual à captura (2618)
+        self.assertEqual(encrypt(p.ledon_05()).hex(), "ebd372ed98857317f2f54cd2130fdc9c")  # captura (2762)
+
+    def test_cor_8_bits(self):
+        self.assertEqual(self.uteis(p.colo8(255, 0, 0)), hx("07 43 4F 4C 4F 00 FF 00"))
+        self.assertEqual(self.uteis(p.colo8(0, 255, 0)), hx("07 43 4F 4C 4F FF 00 00"))
+        self.assertEqual(self.uteis(p.colo8(0, 0, 255)), hx("07 43 4F 4C 4F 00 00 FF"))
+
+    def test_efeito_light_speed(self):
+        seq = p.eff_app(3)
+        self.assertEqual(seq[0], hx("0F 45 46 46 03 07 03 FF 00 00 FF 80 00 FF FF 00"))
+        self.assertEqual(seq[1], hx("0F 45 46 46 03 07 13 00 FF 00 00 FF FF 00 00 FF"))
+        self.assertEqual(self.uteis(seq[2]), hx("07 45 46 46 03 07 21 80"))
+        self.assertEqual(self.uteis(p.light_brilho(50)), hx("06 4C 49 47 48 54 32"))
+        self.assertEqual(self.uteis(p.speed(8)), hx("06 53 50 45 45 44 08"))
+
+    def test_imag_mode_smvew_pixel(self):
+        self.assertEqual(self.uteis(p.imag(0x1A)), hx("05 49 4D 41 47 1A"))
+        self.assertEqual(self.uteis(p.mode(3)), hx("05 4D 4F 44 45 03"))
+        self.assertEqual(self.uteis(p.smvew(1)), hx("06 53 4D 56 45 57 01"))
+        self.assertEqual(self.uteis(p.smvew(2)), hx("06 53 4D 56 45 57 02"))
+        # captura 6586: 05 07 05 FD 54 01 (brilho 100 %)
+        self.assertEqual(p.pixel_xy(7, 5, 0xFD, 0x54, 0x01, brilho=100), hx("05 07 05 FD 54 01 00 00 00 00 00 00 00 00 00 00"))
+        self.assertEqual(encrypt(p.pixel_xy(7, 5, 0xFD, 0x54, 0x01, brilho=100)).hex(), "bc69ba6b343cb77fe4c75d952452feec")
+        self.assertEqual(p.pixel_xy(1, 1, 255, 255, 255)[3:6], bytes([102, 102, 102]))  # 40 % por padrão
+        with self.assertRaises(ValueError):
+            p.pixel_xy(21, 0, 0, 0, 0)
+        with self.assertRaises(ValueError):
+            p.smvew(3)
+
+
 class TestSeguranca(unittest.TestCase):
     def test_efeito_fora_de_1_a_10_da_erro(self):
         for n in (0, 11, 12, 255, -1):

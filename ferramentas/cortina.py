@@ -8,6 +8,9 @@ Comandos:
     cor R G B [--brilho %]      COLO (TYPE1) ou SGLS (TYPE2), cor em 5 bits
     efeito N [--velocidade V]   N de 1 a 10. TYPE1: LIGHT + 3×EFF. TYPE2: MULT + paleta em DATA
     versao                      VE 00 e VE 01 (a resposta chega por NOTIFY)
+    roteiro PASSO [PASSO ...]   comandos reais desta cortina (PROTOCOLO §5bis), em ordem:
+                                ver · leds[:N] · ledoff · ledon · hora · cor:R,G,B[,brilho] · efeito:N[,brilho,vel]
+                                imag:I · mode[:M] · smvew:1|2 · pixel:X,Y,R,G,B[,brilho]
 
 Opções:
     --tipo TYPE1|TYPE2   conjunto de comandos (padrão TYPE1, ver docs/DESCOBERTAS.md)
@@ -49,6 +52,7 @@ CIFRA_ATIVA = "aes"
 CMD = "d44bc439-abfd-45a2-b575-925416129600"
 DATA = "d44bc439-abfd-45a2-b575-92541612960a"
 NOTIFY = "d44bc439-abfd-45a2-b575-925416129601"
+PIX = "d44bc439-abfd-45a2-b575-92541612960b"  # pixels do desenho (SMVEW), cifrados com AES (PROTOCOLO §5bis)
 
 PAUSA_ENTRE_ESCRITAS = 0.030  # CLAUDE.md regra 6: pelo menos 30 ms
 PALETA_PADRAO = [(255, 0, 0), (255, 216, 0), (0, 255, 0), (0, 255, 255), (0, 0, 255), (255, 0, 255), (255, 255, 255)]
@@ -63,7 +67,7 @@ class Escrita:
     @property
     def fio(self) -> bytes:
         """O que vai no ar: cifrado para CMD, texto puro para DATA."""
-        return CIFRAS[CIFRA_ATIVA][0](self.puro) if self.caracteristica == CMD else self.puro
+        return CIFRAS[CIFRA_ATIVA][0](self.puro) if self.caracteristica in (CMD, PIX) else self.puro
 
 
 def montar(args) -> list[Escrita]:
@@ -95,18 +99,63 @@ def montar(args) -> list[Escrita]:
     elif args.comando == "versao":
         fila.append(Escrita(CMD, p.versao(0), "VE 00 (placa)"))
         fila.append(Escrita(CMD, p.versao(1), "VE 01 (firmware)"))
+    elif args.comando == "roteiro":
+        for token in args.passos:
+            fila += passo(token)
     else:
         raise SystemExit(f"comando desconhecido: {args.comando}")
     return fila
 
 
+def passo(token: str) -> list[Escrita]:
+    """Um passo do `roteiro` (PROTOCOLO §5bis). Formato: nome ou nome:arg1,arg2..."""
+    nome, _, resto = token.partition(":")
+    args = [int(a, 0) for a in resto.split(",")] if resto else []
+    if nome == "ver":
+        return [Escrita(CMD, p.ver(), "VER (espera NOTIFY 05 'VER' 08 01)")]
+    if nome == "leds":
+        return [Escrita(CMD, p.leds(*(args or [0])), f"LEDS {args[0] if args else 0:02X}")]
+    if nome == "ledoff":
+        return [Escrita(CMD, p.ledoff(), "LEDOFF (06)")]
+    if nome == "ledon":
+        return [Escrita(CMD, p.ledon_05(), "LEDON (05, como o app)")]
+    if nome == "hora":
+        from datetime import datetime
+        agora = datetime.now()
+        dw = agora.isoweekday()  # o app mandou 01 numa segunda-feira: 1 = segunda ... 7 = domingo
+        return [Escrita(CMD, p.hora(dw, agora.hour, agora.minute, agora.second), f"TIME dw={dw} {agora:%H:%M:%S}")]
+    if nome == "cor":
+        r, g, b = args[:3]
+        brilho = args[3] if len(args) > 3 else 100
+        return [Escrita(CMD, p.colo8(r, g, b, brilho), f"COLO 8 bits {r},{g},{b} @{brilho}%")]
+    if nome == "efeito":
+        n = args[0]
+        seq = p.eff_app(n)
+        fila = [Escrita(CMD, pk, f"EFF {n} ({i}/3)") for i, pk in enumerate(seq, 1)]
+        fila.append(Escrita(CMD, p.light_brilho(args[1] if len(args) > 1 else 50), "LIGHT (brilho)"))
+        fila.append(Escrita(CMD, p.speed(args[2] if len(args) > 2 else 8), "SPEED"))
+        return fila
+    if nome == "imag":
+        return [Escrita(CMD, p.imag(args[0]), f"IMAG {args[0]}"), Escrita(CMD, p.mode(3), "MODE 03"),
+                Escrita(CMD, p.light_brilho(args[1] if len(args) > 1 else 50), "LIGHT (brilho)"), Escrita(CMD, p.speed(8), "SPEED")]
+    if nome == "mode":
+        return [Escrita(CMD, p.mode(*(args or [3])), f"MODE {args[0] if args else 3:02X}")]
+    if nome == "smvew":
+        return [Escrita(CMD, p.smvew(args[0]), f"SMVEW {args[0]:02X}")]
+    if nome == "pixel":
+        x, y, r, g, b = args[:5]
+        brilho = args[5] if len(args) > 5 else 40
+        return [Escrita(PIX, p.pixel_xy(x, y, r, g, b, brilho), f"pixel ({x},{y}) = {r},{g},{b} @{brilho}% -> …960B")]
+    raise SystemExit(f"passo desconhecido: {token!r} (use ver, leds, ledoff, ledon, hora, cor:R,G,B, efeito:N, imag:I, mode, smvew:1|2, pixel:X,Y,R,G,B)")
+
+
 def mostrar(fila: list[Escrita]) -> None:
     print(f"Fila: {len(fila)} escrita(s)")
     for i, e in enumerate(fila, 1):
-        alvo = "CMD " if e.caracteristica == CMD else "DATA"
+        alvo = {CMD: "CMD ", DATA: "DATA", PIX: "PIX "}[e.caracteristica]
         print(f"  {i}. [{alvo}] {e.rotulo}")
         print(f"       texto puro : {p.hexs(e.puro)}")
-        if e.caracteristica == CMD:
+        if e.caracteristica in (CMD, PIX):
             print(f"       cifrado ({CIFRA_ATIVA}): {p.hexs(e.fio)}")
         else:
             print(f"       (DATA vai em texto puro, {len(e.puro)} bytes)")
@@ -144,7 +193,7 @@ async def enviar(args, fila: list[Escrita]) -> int:
         modo = "com resposta (ATT Write Request)" if com_resposta else "sem resposta (ATT Write Command, como o app oficial nas capturas)"
         print(f"[modo] escrita {modo}")
         for i, e in enumerate(fila, 1):  # fila única, uma escrita por vez
-            alvo = "CMD " if e.caracteristica == CMD else "DATA"
+            alvo = {CMD: "CMD ", DATA: "DATA", PIX: "PIX "}[e.caracteristica]
             t0 = time.monotonic()
             await cliente.write_gatt_char(e.caracteristica, e.fio, response=com_resposta)
             ack = "ACK da cortina" if com_resposta else "sem ack"
@@ -181,6 +230,8 @@ def main() -> int:
     e.add_argument("--velocidade", type=int, default=None, help="1–100 (só TYPE2)")
     e.add_argument("--brilho", type=int, default=50, help="0–100 %% (só TYPE2)")
     sub.add_parser("versao")
+    r = sub.add_parser("roteiro", help="sequência de passos do PROTOCOLO §5bis, ex.: roteiro ver leds ledoff")
+    r.add_argument("passos", nargs="+")
     args = ap.parse_args()
     global CIFRA_ATIVA
     CIFRA_ATIVA = args.cifra
