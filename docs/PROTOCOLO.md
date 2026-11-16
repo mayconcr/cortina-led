@@ -144,7 +144,11 @@ Pior caso, 400 pixels todos diferentes: 29 pacotes. Com run-length, bem menos.
 
 ## 7. Ainda desconhecido (descobrir com cuidado)
 - Comandos exclusivos de cortina no app iDeal LED (texto nativo, animações, imagens). Para descobrir, capture o tráfego Bluetooth do app oficial: no iPhone, com o perfil de log Bluetooth da Apple + PacketLogger num Mac; no Android, com o HCI snoop log. Documente aqui **antes** de usar.
-- O que as notificações dizem: estado, confirmação de comando (ACK) ou versão.
+- O que as notificações dizem (lido das capturas btsnoop de `8none1/idealLED`, aparelho `TR2211R005-01`, cifradas com a mesma chave, 16 bytes, último byte `01`):
+  - `VE 00` → `0A 'V02211.5.1'` (versão da placa) · `VE 01` → `0C 'V122.3.137.8'` (firmware)
+  - `CT` → `09 'CONNECTOK'` · `TURN` → `06 'TURNOK'`. Ou seja, **o controlador responde com um ACK por notificação a cada comando que entende**.
+  - Nas capturas o app escreve na CMD **sem resposta** (ATT Write Command, opcode 0x52), e o handle da NOTIFY é 0x000D com CCCD em 0x000E (mesmo layout da cortina `IDL-6A9E5C`).
+  - O app também conversa com o serviço `0xAE00` (escreve em `0xAE01`, recebe em `0xAE02`): pacotes `00`+16 B, `01`+16 B, `02 'pass'` e `FE DC BA C0 03 00 06 xx FF FF FF FF 00 EF`, com respostas de até 61 bytes. Parece um canal de identificação/OTA (estilo Telink). Os comandos de luz funcionam **antes** disso nas capturas, então não parece obrigatório. **Não mexer.**
 
 ## Fontes
 - 8none1/idealLED: integração para Home Assistant e notas do protocolo (`att_protocol.md`, `idealled_controller.py`, `custom_components/ideal_led/`) — https://github.com/8none1/idealLED

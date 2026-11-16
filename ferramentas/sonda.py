@@ -33,6 +33,7 @@ DATA = "d44bc439-abfd-45a2-b575-92541612960a"
 NOTIFY = "d44bc439-abfd-45a2-b575-925416129601"
 OTA_NAO_MEXER = "0000ae00-0000-1000-8000-00805f9b34fb"
 DESCRITOR_USER_DESCRIPTION = "00002901-0000-1000-8000-00805f9b34fb"
+EXTRA_READ = "d44bc439-abfd-45a2-b575-925416129602"  # [read], não documentada; só lida com --ler-extra
 
 ESPERADOS = {CMD: "CMD", DATA: "DATA", NOTIFY: "NOTIFY"}
 
@@ -72,7 +73,7 @@ async def achar(nome: str, segundos: float):
     return achado
 
 
-async def sonda(nome: str, escuta: float) -> int:
+async def sonda(nome: str, escuta: float, ler_extra: bool = False) -> int:
     dispositivo = await achar(nome, 15)
     firmware: str | None = None
     notificacoes: list[tuple[float, bytes]] = []
@@ -149,6 +150,18 @@ async def sonda(nome: str, escuta: float) -> int:
                 print(f"  handle 7: ERRO ({erro!r})")
         print(f"\nString de firmware: {firmware!r}")
 
+        # extra (opcional): ler a característica …9602 [read], não documentada. Leitura é segura.
+        if ler_extra:
+            print("\n=== extra: leitura da característica …9602 (read) ===")
+            try:
+                valor = bytes(await cliente.read_gatt_char(EXTRA_READ))
+                print(f"  bruto ({len(valor)} B): {valor.hex(' ')}  |{ascii_legivel(valor)}|")
+                if len(valor) == 16:
+                    puro = decrypt(valor)
+                    print(f"  decifrado com a chave do PROTOCOLO: {puro.hex(' ')}  |{ascii_legivel(puro)}|")
+            except Exception as erro:
+                print(f"  ERRO ao ler: {erro!r}")
+
         # 1.4 tipo
         tipo, motivo = classificar_tipo(firmware)
         print(f"Tipo de protocolo (§4): {tipo}  ({motivo})")
@@ -180,8 +193,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Sonda somente leitura da cortina iDeal LED (Fase 1)")
     parser.add_argument("--nome", default="IDL-6A9E5C")
     parser.add_argument("--escuta", type=float, default=15, help="segundos escutando notificações")
+    parser.add_argument("--ler-extra", action="store_true", help="lê também a característica …9602 (read)")
     args = parser.parse_args()
-    return asyncio.run(sonda(args.nome, args.escuta))
+    return asyncio.run(sonda(args.nome, args.escuta, args.ler_extra))
 
 
 if __name__ == "__main__":
