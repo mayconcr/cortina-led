@@ -22,7 +22,7 @@ Só entra aqui o que foi **observado** na cortina real, com data. Hipóteses fic
 |---|---|---|---|
 | Ligar / desligar | **Desligar: sim** (`06 'LEDOFF'`, após VER + TIME + LEDS 00 ×2 + handshake JieLi). **Ligar: sim** (`05 'LEDON'`, mesmo preâmbulo) | Cortina acesa (árvore de Natal) **apagou** com LEDOFF; apagada, **acendeu** com LEDON | 2026-11-16 |
 | Cor sólida (`07 'COLO' G R B`, 8 bits; SGLS não existe aqui) | **Sim** | Vermelho, verde e azul a 30% (`00 4C 00`, `4C 00 00`, `00 00 4C`): cortina inteira na cor certa; ordem dos canais G R B confirmada. Duas cores na mesma conexão com 5 s de pausa funcionam. Branco a 30% (`4C 4C 4C`): uniforme e estável | 2026-11-16 |
-| Efeitos (`EFF` ×3 + `LIGHT` + `SPEED`; MULT não existe aqui) | **Aceitos**: efeitos 1–10 a 40%, velocidade 8; a cortina devolveu `EFF 00/01/02 OK` para os 10 (30 ACKs) | nomes na tabela abaixo (a preencher) | 2026-11-16 |
+| Efeitos (`EFF` ×3 + `LIGHT` + `SPEED`; MULT não existe aqui) | **Aceitos**: efeitos 1–10 a 40%, velocidade 8; a cortina devolveu `EFF 00/01/02 OK` para os 10 (30 ACKs) | o usuário viu os 10 efeitos trocando; nomes provisórios na tabela abaixo | 2026-11-16 |
 | Pixel único (DOOD) | | | |
 | Todos (DOOD posição 400) | | | |
 | Quadro em massa (DOOT) | | | |
@@ -30,16 +30,16 @@ Só entra aqui o que foi **observado** na cortina real, com data. Hipóteses fic
 ## Efeitos (nomes dados pelo usuário)
 | ID | Nome | Observação |
 |---|---|---|
-| 1 | | |
-| 2 | | |
-| 3 | | |
-| 4 | | |
-| 5 | | |
-| 6 | | |
-| 7 | | |
-| 8 | | |
-| 9 | | |
-| 10 | | |
+| 1 | Efeito 1 (provisório) | aceito pela cortina (`EFF OK` ×3) a 40%, vel. 8; o usuário viu a troca a cada ~8 s e pediu que eu nomeasse, mas eu não enxergo a cortina — renomear depois |
+| 2 | Efeito 2 (provisório) | aceito pela cortina (`EFF OK` ×3) a 40%, vel. 8; o usuário viu a troca a cada ~8 s e pediu que eu nomeasse, mas eu não enxergo a cortina — renomear depois |
+| 3 | Efeito 3 (provisório) | aceito pela cortina (`EFF OK` ×3) a 40%, vel. 8; o usuário viu a troca a cada ~8 s e pediu que eu nomeasse, mas eu não enxergo a cortina — renomear depois |
+| 4 | Efeito 4 (provisório) | aceito pela cortina (`EFF OK` ×3) a 40%, vel. 8; o usuário viu a troca a cada ~8 s e pediu que eu nomeasse, mas eu não enxergo a cortina — renomear depois |
+| 5 | Efeito 5 (provisório) | aceito pela cortina (`EFF OK` ×3) a 40%, vel. 8; o usuário viu a troca a cada ~8 s e pediu que eu nomeasse, mas eu não enxergo a cortina — renomear depois |
+| 6 | Efeito 6 (provisório) | aceito pela cortina (`EFF OK` ×3) a 40%, vel. 8; o usuário viu a troca a cada ~8 s e pediu que eu nomeasse, mas eu não enxergo a cortina — renomear depois |
+| 7 | Efeito 7 (provisório) | aceito pela cortina (`EFF OK` ×3) a 40%, vel. 8; o usuário viu a troca a cada ~8 s e pediu que eu nomeasse, mas eu não enxergo a cortina — renomear depois |
+| 8 | Efeito 8 (provisório) | aceito pela cortina (`EFF OK` ×3) a 40%, vel. 8; o usuário viu a troca a cada ~8 s e pediu que eu nomeasse, mas eu não enxergo a cortina — renomear depois |
+| 9 | Efeito 9 (provisório) | aceito pela cortina (`EFF OK` ×3) a 40%, vel. 8; o usuário viu a troca a cada ~8 s e pediu que eu nomeasse, mas eu não enxergo a cortina — renomear depois |
+| 10 | Efeito 10 (provisório) | aceito pela cortina (`EFF OK` ×3) a 40%, vel. 8; o usuário viu a troca a cada ~8 s e pediu que eu nomeasse, mas eu não enxergo a cortina — renomear depois |
 
 ## Mapeamento da grade
 - Índice 0 fica em:
@@ -72,3 +72,4 @@ Só entra aqui o que foi **observado** na cortina real, com data. Hipóteses fic
 - 2026-11-16: **Handshake JieLi reconstruído** do assembly de `libjl_ota_auth.so`: é a função **E1 do Bluetooth clássico (SAFER+)** com chave e endereço fixos (PROTOCOLO §5ter). `ferramentas/jl_auth.py` reproduz **os dois** pares desafio/resposta da captura (testes passando). `cortina.py --auth` faz o handshake (3 escritas no `0xAE01`) antes da fila. Ainda **não enviado** à cortina: aguarda autorização do usuário, porque o `0xAE00` estava marcado como "não mexer".
 - 2026-11-16: **Handshake JieLi confirmado na cortina real** (autorizado): ela respondeu corretamente ao meu desafio, aceitou minha resposta E1 e devolveu `02 'pass'`. Mas `LEDOFF` logo depois (só auth + LEDOFF, sem VER/TIME/LEDS na mesma conexão): **continua acesa**. Diferenças que restam em relação ao app: (a) ordem — o app faz VER, TIME, LEDS e só depois o auth; (b) o `TIME` do app tem cauda fixa `A5 5A A5 00 03 02 06` depois da hora (a mesma marca `A5 5A A5` aparece nas capturas Android), que eu mandei zerada; (c) eu desligava a notificação do `0xAE02` logo após o auth, o app deixa ligada; (d) o app manda 3 comandos RCSP (`FE DC BA C0 06/03/07 …`); (e) o app só manda o LEDOFF vários segundos depois de conectar.
 - 2026-11-16 01:17: 🎉 **PRIMEIRO COMANDO OBEDECIDO.** Sequência na ordem do app, numa conexão: `VER` → `TIME` com cauda `A5 5A A5 00 03 02 06` → `LEDS 00` ×2 → handshake JieLi (AE02 notificando até o fim) → pausa 2 s → `LEDOFF`: **a cortina apagou** (confirmado pelo usuário). Comando: `cortina.py --com-resposta --espera 6 roteiro ver hora leds leds auth pausa:2 ledoff`. Os comandos RCSP `FE DC BA C0 …` **não** são necessários. Pendente: descobrir o conjunto mínimo (qual de ordem / cauda do TIME / AE02 ligado / pausa fez a diferença em relação à tentativa anterior "auth + LEDOFF").
+- 2026-11-16 01:25: **Fase 2 concluída.** Ligar, desligar, cor sólida (R, G, B e branco a 30%) e efeitos 1–10 funcionam pelo `cortina.py` (subcomandos `ligar`, `desligar`, `cor`, `efeito` já usam o preâmbulo + handshake; branco forte bloqueado acima de 40%). Nomes dos efeitos ficaram provisórios ("Efeito N"). **A Fase 3 do PLANO precisa ser refeita**: DOOD/DOOT não existem nesta cortina; o desenho é `SMVEW 01` + um pacote AES por pixel (`05 X Y R G B`) na `…960B` + `SMVEW 02` + `MODE 03` (PROTOCOLO §5bis).

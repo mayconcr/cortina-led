@@ -3,17 +3,17 @@
     .venv/bin/python ferramentas/cortina.py [opções] COMANDO ...
 
 Comandos:
-    ligar                       LEDON (TYPE1) ou TURN 01 (TYPE2)
-    desligar                    LEDOFF (TYPE1) ou TURN 00 (TYPE2)
-    cor R G B [--brilho %]      COLO (TYPE1) ou SGLS (TYPE2), cor em 5 bits
-    efeito N [--velocidade V]   N de 1 a 10. TYPE1: LIGHT + 3×EFF. TYPE2: MULT + paleta em DATA
+    ligar                       preâmbulo + handshake + LEDON
+    desligar                    preâmbulo + handshake + LEDOFF
+    cor R G B [--brilho %]      preâmbulo + handshake + COLO (8 bits, brilho padrão 30 %)
+    efeito N [--velocidade V] [--brilho %]   N de 1 a 10: 3×EFF + LIGHT + SPEED (brilho padrão 40 %)
     versao                      VE 00 e VE 01 (a resposta chega por NOTIFY)
     roteiro PASSO [PASSO ...]   comandos reais desta cortina (PROTOCOLO §5bis), em ordem:
                                 ver · leds[:N] · ledoff · ledon · hora · cor:R,G,B[,brilho] · efeito:N[,brilho,vel]
                                 imag:I · mode[:M] · smvew:1|2 · pixel:X,Y,R,G,B[,brilho]
 
 Opções:
-    --tipo TYPE1|TYPE2   conjunto de comandos (padrão TYPE1, ver docs/DESCOBERTAS.md)
+    --tipo REAL|TYPE1|TYPE2  REAL (padrão) = protocolo confirmado nesta cortina; os outros são do kit original
     --so-mostrar         NÃO conecta: só imprime os pacotes (texto puro e cifrado)
     --espera S           segundos esperando notificações depois do último pacote (padrão 2)
     --com-resposta       escrita com resposta (ATT Write Request). O padrão é SEM resposta (Write Command,
@@ -75,10 +75,40 @@ class Escrita:
         return CIFRAS[CIFRA_ATIVA][0](self.puro) if self.caracteristica in (CMD, PIX) else self.puro
 
 
+# O que o app manda logo após conectar e que esta cortina exige antes de obedecer (confirmado em 2026-11-16).
+PREAMBULO = ("ver", "hora", "leds", "leds", "auth", "pausa:2")
+LIMITE_BRANCO = 40  # % — CLAUDE.md regra 5: nunca os 400 LEDs em branco forte (fonte 5V/USB)
+
+
+def conferir_branco(r: int, g: int, b: int, brilho: int) -> None:
+    """Bloqueia cor sólida com os três canais acima de 40 % (branco forte nos 400 LEDs)."""
+    if min(r, g, b) * brilho / 100 > 255 * LIMITE_BRANCO / 100:
+        raise ValueError(f"branco forte bloqueado: com os 3 canais acesos, o brilho máximo é {LIMITE_BRANCO}%")
+
+
 def montar(args) -> list[Escrita]:
     """Transforma o comando da linha em uma lista ordenada de escritas (a fila)."""
     t1 = args.tipo == "TYPE1"
     fila: list[Escrita] = []
+    if args.tipo == "REAL" and args.comando in ("ligar", "desligar", "cor", "efeito"):
+        # Protocolo real desta cortina (PROTOCOLO §5bis/§5ter): preâmbulo do app + handshake + comando.
+        for token in PREAMBULO:
+            fila += passo(token)
+        if args.comando == "ligar":
+            fila += passo("ledon")
+        elif args.comando == "desligar":
+            fila += passo("ledoff")
+        elif args.comando == "cor":
+            brilho = 30 if args.brilho is None else args.brilho
+            conferir_branco(args.r, args.g, args.b, brilho)
+            fila += passo(f"cor:{args.r},{args.g},{args.b},{brilho}")
+        else:
+            brilho = 40 if args.brilho is None else args.brilho
+            vel = 8 if args.velocidade is None else args.velocidade
+            fila += passo(f"efeito:{args.n},{brilho},{vel}")
+        return fila
+    if args.comando in ("cor", "efeito") and args.brilho is None:
+        args.brilho = 100 if args.comando == "cor" else 50
     if args.comando == "ligar":
         fila.append(Escrita(CMD, p.ledon() if t1 else p.turn(True), "LEDON" if t1 else "TURN 01"))
     elif args.comando == "desligar":
@@ -257,7 +287,7 @@ async def enviar(args, fila: list[Escrita]) -> int:
         if args.auth and not await autenticar(cliente, caixa_ae02):
             print("[auth] FALHOU: não vou enviar a fila de comandos")
             return 3
-        com_resposta = args.com_resposta
+        com_resposta = args.com_resposta or args.tipo == "REAL"  # o que foi confirmado na cortina em 2026-11-16
         modo = "com resposta (ATT Write Request)" if com_resposta else "sem resposta (ATT Write Command, como o app oficial nas capturas)"
         print(f"[modo] escrita {modo}")
         for i, e in enumerate(fila, 1):  # fila única, uma escrita por vez
@@ -288,7 +318,7 @@ async def enviar(args, fila: list[Escrita]) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Comandos básicos da cortina iDeal LED (Fase 2)")
-    ap.add_argument("--tipo", choices=("TYPE1", "TYPE2"), default="TYPE1")
+    ap.add_argument("--tipo", choices=("REAL", "TYPE1", "TYPE2"), default="REAL", help="REAL = protocolo confirmado nesta cortina (padrão); TYPE1/TYPE2 = kit original, não funcionam nela")
     ap.add_argument("--so-mostrar", action="store_true", help="só imprime os pacotes, não conecta")
     ap.add_argument("--espera", type=float, default=2.0)
     ap.add_argument("--com-resposta", action="store_true", help="usa escrita com resposta (padrão: sem resposta, como o app oficial nas capturas)")
@@ -302,11 +332,11 @@ def main() -> int:
     c.add_argument("r", type=int)
     c.add_argument("g", type=int)
     c.add_argument("b", type=int)
-    c.add_argument("--brilho", type=int, default=100, help="0–100 %%, aplicado antes do >> 3")
+    c.add_argument("--brilho", type=int, default=None, help="0–100 %% (padrão 30)")
     e = sub.add_parser("efeito")
     e.add_argument("n", type=int, help="1 a 10")
-    e.add_argument("--velocidade", type=int, default=None, help="1–100 (só TYPE2)")
-    e.add_argument("--brilho", type=int, default=50, help="0–100 %% (só TYPE2)")
+    e.add_argument("--velocidade", type=int, default=None, help="velocidade (padrão 8, como o app)")
+    e.add_argument("--brilho", type=int, default=None, help="0–100 %% (padrão 40)")
     sub.add_parser("versao")
     r = sub.add_parser("roteiro", help="sequência de passos do PROTOCOLO §5bis, ex.: roteiro ver leds ledoff")
     r.add_argument("passos", nargs="+")

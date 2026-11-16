@@ -33,13 +33,14 @@ Legenda: `[ ]` pendente · `[x]` concluída · 🛑 checkpoint (pare e espere o 
 ## Fase 2: Comandos básicos (CLI)
 - [x] 2.1 `ferramentas/cortina.py`, com subcomandos `ligar`, `desligar`, `cor R G B [--brilho %]`, `efeito N [--velocidade V]` e `versao`. Usa fila de escrita e assina notificações antes de escrever.
 - [x] 2.2 Validações no código: efeito só de 1 a 10, cor em 5 bits, brilho limitado. Testes unitários dos pacotes gerados contra os exemplos do `PROTOCOLO.md`.
-- [ ] 2.3 Roteiro com o usuário, **um comando por vez**, perguntando o que ele viu: desligar → ligar → vermelho → verde → azul → branco a 30% → efeitos 1 a 10, anotando o nome que o usuário der a cada um.
-- [ ] 2.4 Se TYPE2 não funcionar: mostrar os bytes TYPE1 (§6), pedir permissão e testar só liga/desliga.
+- [x] 2.3 Roteiro com o usuário, **um comando por vez**, perguntando o que ele viu: desligar → ligar → vermelho → verde → azul → branco a 30% → efeitos 1 a 10, anotando o nome que o usuário der a cada um.
+- [x] 2.4 Se TYPE2 não funcionar: mostrar os bytes TYPE1 (§6), pedir permissão e testar só liga/desliga.
 
 **Aceite:** liga, desliga, cor e efeitos funcionando e anotados em `DESCOBERTAS.md`, com a lista de efeitos e nomes.
 🛑
 
 ## Fase 3: Pixels e mapeamento da grade 20×20
+> ⚠️ **Revisar antes de começar (2026-11-16):** esta cortina não tem DOOD/DOOT. O desenho usa `SMVEW 01` → um pacote AES por pixel `05 X Y R G B` na característica `…960B` → `SMVEW 02` → `MODE 03` (ver `PROTOCOLO.md` §5bis). As tarefas abaixo valem com essa troca: 3.1/3.2 viram "acender (X,Y) = (1,1), (20,1), (1,20), (20,20)" para achar a origem e o sentido dos eixos; 3.4 vira "descobrir como apagar o desenho"; 3.5/3.6 viram "quadro completo = até 400 pacotes; medir o tempo".
 - [ ] 3.1 `cortina.py pixel IDX R G B` (DOOD, um pixel). Primeiro teste com o exemplo documentado (índice 0). Pergunte onde o LED acendeu.
 - [ ] 3.2 Acender os índices 1, 19, 20, 21, 39, 399, um por vez, perguntando a posição a cada um. Os índices acima de 255 usam posição de 16 bits: confirme os bytes com o usuário antes.
 - [ ] 3.3 Deduzir o mapeamento índice → (coluna, linha): sentido, zigue-zague e canto de origem. Implementar `mapear(col, lin) → índice` e um teste visual (acender a borda da grade).
