@@ -1,0 +1,9 @@
+{
+  "name": "cortina-led",
+  "private": true,
+  "type": "module",
+  "description": "App próprio para a cortina de LED IDL-6A9E5C (Web Bluetooth, sem build, sem dependências)",
+  "scripts": {
+    "test": "node --test 'tests/*.test.mjs'"
+  }
+}

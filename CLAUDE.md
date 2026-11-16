@@ -58,5 +58,5 @@ cortina-led/
 - `python ferramentas/scan.py`: procura a cortina por 10 s, somente leitura (Fase 0)
 - `python ferramentas/sonda.py`: diagnóstico somente leitura (Fase 1)
 - `python ferramentas/cortina.py --help`: comandos básicos (Fase 2+)
-- `node --test tests/`: testes do protocolo em JS
+- `npm test` (ou `node --test 'tests/*.test.mjs'`): testes do app em JS. O Node 26 não aceita mais `node --test tests/` (pasta)
 - `/proxima-fase`: continua o plano · `/revisar-seguranca`: audita o código contra as regras acima
