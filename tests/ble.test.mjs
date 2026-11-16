@@ -223,3 +223,20 @@ test("reconecta sozinha e refaz preâmbulo e handshake", async () => {
   assert.equal(falsa.escritas.filter((e) => e.uuid === UUID.AE01).length, 6);
   cortina.desconectar();
 });
+
+test("rolagem com velocidade: SMVEW 02, MODE 03 e SPEED, nessa ordem (como o app oficial)", async () => {
+  const { cortina, falsa } = await conectada();
+  const grade = Array.from({ length: 20 }, () => Array(20).fill(null));
+  grade[5][5] = [0, 255, 0];
+  const antes = falsa.escritas.length;
+  await cortina.desenhar(grade, { brilho: 40, rolar: true, velocidade: 4 });
+  const fim = falsa.escritas.slice(antes).map((e) => decifrar(e.dados));
+  assert.deepEqual(fim.slice(-3).map((pk) => texto(pk).slice(0, 5)), ["SMVEW", "MODE.", "SPEED"]);
+  assert.equal(fim.at(-1)[6], 4);
+  await cortina.velocidade(12);
+  assert.equal(decifrar(falsa.escritas.at(-1).dados)[6], 12);
+  assert.throws(() => cortina.velocidade(17), RangeError);
+  await cortina.desenhar(grade, { brilho: 40, velocidade: 4 }); // sem rolar, não manda SPEED
+  assert.equal(texto(decifrar(falsa.escritas.at(-1).dados)).slice(0, 5), "SMVEW");
+  cortina.desconectar();
+});

@@ -1,4 +1,4 @@
-// Interface do app (abas Início, Efeitos, Desenhar, Galeria, Texto e Imagem).
+// Interface do app: abas Início, Efeitos, Animações, Galeria e Criar (Desenhar, Texto, Foto).
 // Toda a lógica de bytes e de segurança está em protocol.js / grade.js / ble.js; aqui é só tela.
 
 import { Cortina, suporteBluetooth } from "./ble.js";
@@ -6,11 +6,20 @@ import { EXEMPLOS } from "./exemplos.js";
 import { capacidade, textoParaGrade } from "./fonte.js";
 import * as G from "./grade.js";
 import { gravar, ler } from "./memoria.js";
-import { BRILHO_EFEITO_MAX, BRILHO_EFEITO_MIN, BRILHO_MAX, EFEITO_MAX, EFEITO_MIN, VELOCIDADE_PADRAO } from "./protocol.js";
-import { desenharGrade } from "./tela.js";
+import { ANIMACOES_NATAL, DESENHOS_NATAL } from "./natal.js";
+import {
+  BRILHO_EFEITO_MAX,
+  BRILHO_EFEITO_MIN,
+  BRILHO_MAX,
+  EFEITO_MAX,
+  EFEITO_MIN,
+  VELOCIDADE_MAX,
+  VELOCIDADE_MIN,
+  VELOCIDADE_PADRAO,
+} from "./protocol.js";
+import { Animador, desenharGrade } from "./tela.js";
+import { $, $$, abrirFolha, avisar, confirmar, el, fecharFolha, iniciarFolha, interruptor, pedirTexto, slider } from "./ui.js";
 
-const $ = (seletor) => document.querySelector(seletor);
-const $$ = (seletor) => Array.from(document.querySelectorAll(seletor));
 const entre = (v, min, max, padrao) => (Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : padrao);
 const virgula = (n, casas = 1) => n.toFixed(casas).replace(".", ",");
 
@@ -27,8 +36,12 @@ const CORES = [
   ["Branco", [255, 255, 255]],
 ];
 
+const ICONE_LAPIS = '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></svg>';
+
 const cortina = new Cortina();
 cortina.pixComResposta = ler("pixComResposta", false) === true;
+const animador = new Animador(6);
+const registro = [];
 
 const estado = {
   cor: ler("cor", [255, 0, 0]),
@@ -38,16 +51,18 @@ const estado = {
   nomesEfeitos: ler("nomesEfeitos", {}),
   efeitoAtivo: null,
   brilhoEfeito: entre(ler("brilhoEfeito", BRILHO_MAX), BRILHO_EFEITO_MIN, BRILHO_EFEITO_MAX, BRILHO_MAX),
-  // SPEED 1–16 não mudou nada na cortina (2026-11-16): fica fixo no valor que o app oficial manda.
-  velocidade: VELOCIDADE_PADRAO,
   desenho: carregarDesenho(),
   desfazer: [],
   ferramenta: "pincel",
   corPincel: ler("corPincel", [255, 0, 0]),
   brilhoDesenho: entre(ler("brilhoDesenho", BRILHO_MAX), 5, BRILHO_MAX, BRILHO_MAX),
   rolar: ler("rolar", false) === true,
+  velocidadeRolagem: entre(ler("velocidadeRolagem", VELOCIDADE_PADRAO), VELOCIDADE_MIN, VELOCIDADE_MAX, VELOCIDADE_PADRAO),
+  rolagemNaCortina: false,
   galeria: ler("galeria", []),
-  texto: { texto: "OLÁ", fonte: "grande", alinhamento: "centro", cor: [0, 160, 255], ...ler("texto", {}) },
+  filtroGaleria: ler("filtroGaleria", "natal"),
+  modoCriar: ler("modoCriar", "desenhar"),
+  texto: { texto: "NOEL", fonte: "grande", alinhamento: "centro", cor: [255, 0, 0], ...ler("texto", {}) },
   imagem: { fonte: null, zoom: 1, x: 0, y: 0, limiar: 30, vivas: true, grade: null },
   envio: null, // AbortController do desenho que está sendo enviado
 };
@@ -60,53 +75,22 @@ function carregarDesenho() {
   }
 }
 
-// ---------- avisos e diálogo ----------
-
-let relogioAviso;
-function avisar(mensagem, tipo = "info") {
-  const t = $("#toast");
-  t.textContent = mensagem;
-  t.dataset.tipo = tipo;
-  t.classList.add("visivel");
-  clearTimeout(relogioAviso);
-  relogioAviso = setTimeout(() => t.classList.remove("visivel"), tipo === "erro" ? 5500 : 2800);
-}
-
-function abrirModal({ titulo, campo = false, valor = "", ok = "OK" }) {
-  return new Promise((resolver) => {
-    const modal = $("#modal");
-    const form = $("#modal-form");
-    const input = $("#modal-campo");
-    $("#modal-titulo").textContent = titulo;
-    $("#modal-ok").textContent = ok;
-    input.hidden = !campo;
-    input.value = valor;
-    modal.hidden = false;
-    if (campo) setTimeout(() => input.focus(), 50);
-    const fechar = (resposta) => {
-      modal.hidden = true;
-      form.onsubmit = null;
-      $("#modal-cancelar").onclick = null;
-      resolver(resposta);
-    };
-    form.onsubmit = (e) => {
-      e.preventDefault();
-      fechar(campo ? input.value : "");
-    };
-    $("#modal-cancelar").onclick = () => fechar(null);
-  });
-}
-
-const pedirTexto = (titulo, valor) => abrirModal({ titulo, campo: true, valor });
-const confirmar = async (titulo, ok = "Sim") => (await abrirModal({ titulo, ok })) !== null;
-
-// ---------- conexão ----------
+// ============================================================
+//                         conexão
+// ============================================================
 
 const ROTULOS = {
   desconectado: "Conectar",
   conectando: "Conectando…",
   preparando: "Preparando…",
   conectado: "Conectada",
+  reconectando: "Reconectando…",
+};
+const ESTADO_LONGO = {
+  desconectado: "Desconectada",
+  conectando: "Conectando…",
+  preparando: "Preparando…",
+  conectado: "Pronta",
   reconectando: "Reconectando…",
 };
 
@@ -119,10 +103,7 @@ function chamarConexao() {
 
 function exigirConexao() {
   if (cortina.conectada) return true;
-  avisar(
-    cortina.estado === "desconectado" ? "Conecte a cortina primeiro (botão lá em cima)." : "Espere a cortina terminar de conectar.",
-    "aviso",
-  );
+  avisar(cortina.estado === "desconectado" ? "Conecte a cortina primeiro." : "Espere a cortina terminar de conectar.", "aviso");
   chamarConexao();
   return false;
 }
@@ -130,7 +111,7 @@ function exigirConexao() {
 /** Roda um comando da cortina mostrando o erro de forma amigável. */
 async function executar(acao, sucesso) {
   if (!exigirConexao()) return false;
-  if (estado.envio) avisar("Na fila: espere o desenho terminar de enviar.");
+  if (estado.envio) avisar("Na fila: espere o envio terminar.");
   try {
     await acao();
     if (sucesso) avisar(sucesso, "ok");
@@ -142,11 +123,8 @@ async function executar(acao, sucesso) {
   }
 }
 
-$("#conexao").addEventListener("click", async () => {
-  if (cortina.estado === "conectado") {
-    avisar(`Conectada em ${cortina.nome}.`, "ok");
-    return;
-  }
+async function conectar() {
+  if (cortina.estado === "conectado") return;
   if (cortina.estado !== "desconectado") return;
   const suporte = suporteBluetooth();
   if (!suporte.ok) {
@@ -155,115 +133,179 @@ $("#conexao").addEventListener("click", async () => {
   }
   try {
     await cortina.conectar(); // abre o seletor do navegador: precisa vir direto do toque
-    avisar("Cortina conectada!", "ok");
+    avisar("Cortina conectada", "ok");
   } catch (erro) {
-    if (erro.name === "NotFoundError") avisar("Nenhuma cortina escolhida. Ela está ligada? O app iDeal LED está fechado?", "aviso");
+    if (erro.name === "NotFoundError") avisar("Nenhuma cortina escolhida. Ela está ligada e o app iDeal LED fechado?", "aviso");
     else avisar(erro.message || String(erro), "erro");
   }
-});
+}
 
-$("#desconectar").addEventListener("click", () => cortina.desconectar());
+$("#conexao").addEventListener("click", () => (cortina.estado === "conectado" ? abrirAjustes() : conectar()));
 
 cortina.addEventListener("estado", (e) => {
   const { estado: s, mensagem } = e.detail;
   $("#conexao").dataset.estado = s;
   $("#conexao-texto").textContent = ROTULOS[s] || s;
-  $("#info-dispositivo").textContent = s === "conectado" ? `Conectada em ${cortina.nome}.` : s === "desconectado" ? "Nenhuma cortina conectada." : `${ROTULOS[s]} ${cortina.nome}`;
+  $("#energia-estado").textContent = ESTADO_LONGO[s] || s;
+  if (s !== "conectado") estado.rolagemNaCortina = false;
   if (mensagem) avisar(mensagem, s === "desconectado" ? "erro" : "info");
   if (s === "reconectando") avisar("A conexão caiu. Reconectando…", "aviso");
+  atualizarAjustes();
 });
 
+let listaRegistro = null;
 cortina.addEventListener("log", (e) => {
-  const { texto, tipo, hora } = e.detail;
-  const li = document.createElement("li");
-  li.dataset.tipo = tipo;
-  li.textContent = `${hora.toLocaleTimeString("pt-BR")}  ${texto}`;
-  const registro = $("#registro");
-  registro.prepend(li);
-  while (registro.children.length > 150) registro.lastChild.remove();
+  registro.unshift(e.detail);
+  if (registro.length > 150) registro.length = 150;
+  if (listaRegistro?.isConnected) listaRegistro.prepend(itemRegistro(e.detail));
 });
 
-const pixCheck = $("#pix-com-resposta");
-pixCheck.checked = cortina.pixComResposta;
-pixCheck.addEventListener("change", () => {
-  cortina.pixComResposta = pixCheck.checked;
-  gravar("pixComResposta", pixCheck.checked);
-  atualizarResumos();
-});
+const itemRegistro = ({ texto, tipo, hora }) => el("li", { "data-tipo": tipo }, `${hora.toLocaleTimeString("pt-BR")}  ${texto}`);
+
+// ---------- folha de ajustes ----------
+
+let atualizarAjustes = () => {};
+
+function abrirAjustes() {
+  const linhas = el("ul", { class: "info-linhas" });
+  const botaoConexao = el("button", { type: "button", class: "botao tonal largo" });
+  const preencher = () => {
+    linhas.replaceChildren(
+      el("li", {}, "Cortina", el("b", {}, cortina.nome || "—")),
+      el("li", {}, "Estado", el("b", {}, ESTADO_LONGO[cortina.estado] || cortina.estado)),
+    );
+    botaoConexao.textContent = cortina.estado === "desconectado" ? "Conectar" : "Desconectar";
+  };
+  botaoConexao.addEventListener("click", () => (cortina.estado === "desconectado" ? conectar() : cortina.desconectar()));
+  listaRegistro = el("ol", { class: "registro", "aria-label": "Registro" }, registro.slice(0, 80).map(itemRegistro));
+  preencher();
+  atualizarAjustes = preencher;
+  abrirFolha(
+    el(
+      "div",
+      {},
+      el("h3", {}, "Conexão e ajustes"),
+      el("p", { class: "subtitulo" }, "Feche o app iDeal LED no celular antes de conectar."),
+      linhas,
+      interruptor({
+        rotulo: "Desenho mais confiável (cerca de 3× mais lento)",
+        marcado: cortina.pixComResposta,
+        aoMudar: (v) => {
+          cortina.pixComResposta = v;
+          gravar("pixComResposta", v);
+          atualizarResumoCriar();
+        },
+      }),
+      el("div", { class: "par-botoes" }, botaoConexao),
+      el("h2", { class: "rotulo-secao" }, "Registro"),
+      listaRegistro,
+    ),
+    {
+      aoFechar: () => {
+        atualizarAjustes = () => {};
+        listaRegistro = null;
+      },
+    },
+  );
+}
+
+$("#abrir-ajustes").addEventListener("click", abrirAjustes);
 
 for (const botao of $$("[data-acao]")) {
   const acao = botao.dataset.acao;
-  const mensagens = { ligar: "Ligada.", desligar: "Desligada.", apagar: "Desenho apagado." };
+  const mensagens = { ligar: "Ligada", desligar: "Desligada" };
   botao.addEventListener("click", () => executar(() => cortina[acao](), mensagens[acao]));
 }
 
-// ---------- abas ----------
+// ============================================================
+//                           abas
+// ============================================================
 
 function trocarAba(nome) {
   if (!$(`#aba-${nome}`)) nome = "inicio";
   gravar("aba", nome);
   for (const s of $$(".aba")) s.hidden = s.id !== `aba-${nome}`;
   for (const b of $$(".abas button")) b.setAttribute("aria-current", b.dataset.aba === nome ? "page" : "false");
-  if (nome === "desenhar") desenharEditor();
+  $("#titulo").textContent = $(`#aba-${nome}`).dataset.titulo;
+  if (nome === "animacoes") renderAnimacoes();
   if (nome === "galeria") renderGaleria();
-  if (nome === "texto") atualizarTexto();
-  if (nome === "imagem") atualizarImagem();
+  if (nome === "criar") trocarModoCriar(estado.modoCriar);
   window.scrollTo(0, 0);
 }
 
 for (const b of $$(".abas button")) b.addEventListener("click", () => trocarAba(b.dataset.aba));
 
-// ---------- paletas de cor ----------
-
-/** Monta uma fileira de cores + "outra cor". Devolve a função que redesenha a fileira. */
-function montarPaleta(raiz, obter, escolher) {
-  function render() {
-    raiz.replaceChildren();
-    const atual = obter();
-    for (const [nome, cor] of CORES) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "amostra";
-      b.style.background = G.rgbParaHex(cor);
-      b.title = nome;
-      b.setAttribute("aria-label", nome);
-      if (G.mesmaCor(cor, atual)) b.classList.add("ativa");
-      b.addEventListener("click", () => {
-        escolher([...cor]);
-        render();
-      });
-      raiz.append(b);
+/** Liga os botões de um controle segmentado a uma função. */
+function segmentado(raiz, obter, definir) {
+  const render = () => {
+    for (const b of raiz.querySelectorAll("button")) {
+      const ativo = b.dataset.valor === obter();
+      b.classList.toggle("ativo", ativo);
+      b.setAttribute("aria-selected", String(ativo));
     }
-    const livre = document.createElement("label");
-    livre.className = "amostra livre";
-    livre.title = "Outra cor";
-    if (!CORES.some(([, c]) => G.mesmaCor(c, atual))) {
-      livre.classList.add("ativa");
-      livre.style.background = G.rgbParaHex(atual);
-    }
-    const input = document.createElement("input");
-    input.type = "color";
-    input.value = G.rgbParaHex(atual);
-    input.setAttribute("aria-label", "Escolher outra cor");
-    input.addEventListener("change", () => {
-      escolher(G.hexParaRGB(input.value));
+  };
+  for (const b of raiz.querySelectorAll("button")) {
+    b.addEventListener("click", () => {
+      definir(b.dataset.valor);
       render();
     });
-    livre.append(input);
-    raiz.append(livre);
   }
   render();
   return render;
 }
 
-// ---------- Início: cor sólida e favoritas ----------
+// ============================================================
+//                     cores (paletas)
+// ============================================================
+
+/** Fileira de cores + "outra cor". Devolve a função que redesenha a fileira. */
+function montarPaleta(raiz, obter, escolher) {
+  function render() {
+    const atual = obter();
+    const botoes = CORES.map(([nome, cor]) =>
+      el("button", {
+        type: "button",
+        class: `amostra${G.mesmaCor(cor, atual) ? " ativa" : ""}`,
+        style: `background:${G.rgbParaHex(cor)}`,
+        title: nome,
+        "aria-label": nome,
+        onclick: () => {
+          escolher([...cor]);
+          render();
+        },
+      }),
+    );
+    const livreAtiva = !CORES.some(([, c]) => G.mesmaCor(c, atual));
+    const input = el("input", {
+      type: "color",
+      value: G.rgbParaHex(atual),
+      "aria-label": "Escolher outra cor",
+      onchange: () => {
+        escolher(G.hexParaRGB(input.value));
+        render();
+      },
+    });
+    const livre = el(
+      "label",
+      { class: `amostra livre${livreAtiva ? " ativa" : ""}`, title: "Outra cor", style: livreAtiva ? `background:${G.rgbParaHex(atual)}` : null },
+      input,
+    );
+    raiz.replaceChildren(...botoes, livre);
+  }
+  render();
+  return render;
+}
+
+// ============================================================
+//                   Início: cor sólida
+// ============================================================
 
 function aplicarCor() {
   const [r, g, b] = estado.cor;
   const brilho = G.brilhoSeguroCor(r, g, b, estado.brilhoCor);
-  $("#dica-cor").textContent =
-    brilho < estado.brilhoCor ? `Esta cor vai a no máximo ${brilho}% para proteger a fonte de 5 V.` : "";
+  $("#dica-cor").textContent = brilho < estado.brilhoCor ? `Esta cor vai a no máximo ${brilho}% para proteger a fonte de 5 V.` : "";
   if (brilho <= 0) return;
+  estado.rolagemNaCortina = false;
   executar(() => cortina.cor(r, g, b, brilho));
 }
 
@@ -277,46 +319,45 @@ const renderPaletaCor = montarPaleta(
   },
 );
 
-const brilhoCor = $("#brilho-cor");
-brilhoCor.value = estado.brilhoCor;
-$("#brilho-cor-valor").textContent = `${estado.brilhoCor}%`;
-brilhoCor.addEventListener("input", () => ($("#brilho-cor-valor").textContent = `${brilhoCor.value}%`));
-brilhoCor.addEventListener("change", () => {
-  estado.brilhoCor = Number(brilhoCor.value);
-  gravar("brilhoCor", estado.brilhoCor);
-  aplicarCor();
-});
+$("#controle-brilho-cor").replaceWith(
+  slider({
+    rotulo: "Brilho",
+    min: 5,
+    max: BRILHO_MAX,
+    valor: estado.brilhoCor,
+    formato: (v) => `${v}%`,
+    aoMudar: (v) => {
+      estado.brilhoCor = v;
+      gravar("brilhoCor", v);
+      aplicarCor();
+    },
+  }),
+);
 
 function renderFavoritas() {
   const raiz = $("#favoritas");
-  raiz.replaceChildren();
-  if (!estado.favoritas.length) {
-    const p = document.createElement("p");
-    p.className = "dica";
-    p.textContent = "Nenhuma ainda.";
-    raiz.append(p);
-    estado.editandoFavoritas = false;
-  }
-  estado.favoritas.forEach((cor, i) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "amostra" + (estado.editandoFavoritas ? " removivel" : "");
-    b.style.background = G.rgbParaHex(cor);
-    b.setAttribute("aria-label", estado.editandoFavoritas ? `Remover ${G.rgbParaHex(cor)}` : `Cor ${G.rgbParaHex(cor)}`);
-    b.addEventListener("click", () => {
-      if (estado.editandoFavoritas) {
-        estado.favoritas.splice(i, 1);
-        gravar("favoritas", estado.favoritas);
-        renderFavoritas();
-        return;
-      }
-      estado.cor = [...cor];
-      gravar("cor", estado.cor);
-      renderPaletaCor();
-      aplicarCor();
-    });
-    raiz.append(b);
-  });
+  if (!estado.favoritas.length) estado.editandoFavoritas = false;
+  const itens = estado.favoritas.map((cor, i) =>
+    el("button", {
+      type: "button",
+      class: `amostra${estado.editandoFavoritas ? " removivel" : ""}`,
+      style: `background:${G.rgbParaHex(cor)}`,
+      "aria-label": estado.editandoFavoritas ? `Remover ${G.rgbParaHex(cor)}` : `Cor ${G.rgbParaHex(cor)}`,
+      onclick: () => {
+        if (estado.editandoFavoritas) {
+          estado.favoritas.splice(i, 1);
+          gravar("favoritas", estado.favoritas);
+          renderFavoritas();
+          return;
+        }
+        estado.cor = [...cor];
+        gravar("cor", estado.cor);
+        renderPaletaCor();
+        aplicarCor();
+      },
+    }),
+  );
+  raiz.replaceChildren(...(itens.length ? itens : [el("p", { class: "nota" }, "Nenhuma ainda. Escolha uma cor e salve aqui.")]));
   $("#editar-favoritas").hidden = !estado.favoritas.length;
   $("#editar-favoritas").textContent = estado.editandoFavoritas ? "Pronto" : "Editar";
 }
@@ -332,123 +373,126 @@ $("#salvar-favorita").addEventListener("click", () => {
     return;
   }
   estado.favoritas.push([...estado.cor]);
-  if (estado.favoritas.length > 12) estado.favoritas.shift();
+  if (estado.favoritas.length > 15) estado.favoritas.shift();
   gravar("favoritas", estado.favoritas);
   renderFavoritas();
-  avisar("Cor salva nas favoritas.", "ok");
+  avisar("Cor salva nas favoritas", "ok");
 });
 
-// ---------- Efeitos ----------
+// ============================================================
+//                         Efeitos
+// ============================================================
 
-const LAPIS = '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></svg>';
 const nomeEfeito = (n) => estado.nomesEfeitos[n] || `Efeito ${n}`;
 
 function renderEfeitos() {
-  const raiz = $("#lista-efeitos");
-  raiz.replaceChildren();
+  const linhas = [];
   for (let n = EFEITO_MIN; n <= EFEITO_MAX; n++) {
-    const item = document.createElement("div");
-    item.className = "efeito" + (estado.efeitoAtivo === n ? " ativo" : "");
-    const botao = document.createElement("button");
-    botao.type = "button";
-    botao.className = "efeito-botao";
-    const num = document.createElement("span");
-    num.className = "num";
-    num.textContent = n;
-    const nome = document.createElement("span");
-    nome.className = "nome";
-    nome.textContent = nomeEfeito(n);
-    botao.append(num, nome);
-    botao.addEventListener("click", () => mostrarEfeito(n));
-    const lapis = document.createElement("button");
-    lapis.type = "button";
-    lapis.className = "icone";
-    lapis.innerHTML = LAPIS;
-    lapis.setAttribute("aria-label", `Dar nome ao efeito ${n}`);
-    lapis.addEventListener("click", async () => {
-      const novo = await pedirTexto(`Nome do efeito ${n}`, nomeEfeito(n));
-      if (novo === null) return;
-      if (novo.trim() && novo.trim() !== `Efeito ${n}`) estado.nomesEfeitos[n] = novo.trim().slice(0, 24);
-      else delete estado.nomesEfeitos[n];
-      gravar("nomesEfeitos", estado.nomesEfeitos);
-      renderEfeitos();
-    });
-    item.append(botao, lapis);
-    raiz.append(item);
+    linhas.push(
+      el(
+        "div",
+        { class: `item-lista${estado.efeitoAtivo === n ? " ativo" : ""}` },
+        el(
+          "button",
+          { type: "button", class: "principal", onclick: () => mostrarEfeito(n) },
+          el("span", { class: "num" }, String(n)),
+          el("span", { class: "nome" }, nomeEfeito(n)),
+        ),
+        el("button", {
+          type: "button",
+          class: "icone",
+          html: ICONE_LAPIS,
+          "aria-label": `Dar nome ao efeito ${n}`,
+          onclick: async () => {
+            const novo = await pedirTexto(`Nome do efeito ${n}`, nomeEfeito(n));
+            if (novo === null) return;
+            if (novo.trim() && novo.trim() !== `Efeito ${n}`) estado.nomesEfeitos[n] = novo.trim().slice(0, 28);
+            else delete estado.nomesEfeitos[n];
+            gravar("nomesEfeitos", estado.nomesEfeitos);
+            renderEfeitos();
+          },
+        }),
+      ),
+    );
   }
+  $("#lista-efeitos").replaceChildren(...linhas);
 }
 
 function mostrarEfeito(n) {
   estado.efeitoAtivo = n;
+  estado.rolagemNaCortina = false;
   renderEfeitos();
-  executar(() => cortina.efeito(n, estado.brilhoEfeito, estado.velocidade));
+  executar(() => cortina.efeito(n, estado.brilhoEfeito, VELOCIDADE_PADRAO));
 }
 
-function controleNumero(input, rotulo, chave, formato) {
-  input.value = estado[chave];
-  rotulo.textContent = formato(estado[chave]);
-  input.addEventListener("input", () => (rotulo.textContent = formato(Number(input.value))));
-  input.addEventListener("change", () => {
-    estado[chave] = Number(input.value);
-    gravar(chave, estado[chave]);
-    if (estado.efeitoAtivo) mostrarEfeito(estado.efeitoAtivo);
+$("#controle-brilho-efeito").append(
+  slider({
+    rotulo: "Brilho dos efeitos",
+    min: BRILHO_EFEITO_MIN,
+    max: BRILHO_EFEITO_MAX,
+    passo: 5,
+    valor: estado.brilhoEfeito,
+    formato: (v) => `${v}%`,
+    aoMudar: (v) => {
+      estado.brilhoEfeito = v;
+      gravar("brilhoEfeito", v);
+      if (estado.efeitoAtivo) mostrarEfeito(estado.efeitoAtivo);
+    },
+  }),
+);
+$("#controle-brilho-efeito .controle").style.marginTop = "0";
+
+// ============================================================
+//             envio de desenhos (comum a várias abas)
+// ============================================================
+
+const controlesBrilho = new Set();
+
+/** Slider do brilho dos desenhos; todos os que estão na tela ficam sincronizados. */
+function controleBrilhoDesenho() {
+  const bloco = slider({
+    rotulo: "Brilho",
+    min: 5,
+    max: BRILHO_MAX,
+    valor: estado.brilhoDesenho,
+    formato: (v) => `${v}%`,
+    aoMover: (v) => {
+      estado.brilhoDesenho = v;
+      for (const outro of controlesBrilho) {
+        if (!outro.isConnected) controlesBrilho.delete(outro);
+        else if (outro !== bloco) outro.definir(v);
+      }
+      atualizarResumoCriar();
+    },
+    aoMudar: (v) => gravar("brilhoDesenho", v),
   });
+  controlesBrilho.add(bloco);
+  return bloco;
 }
 
-controleNumero($("#brilho-efeito"), $("#brilho-efeito-valor"), "brilhoEfeito", (v) => `${v}%`);
-
-// ---------- controles comuns de desenho (brilho, rolar, resumo, envio) ----------
-
-function sincronizarControles() {
-  for (const el of $$(".js-brilho-desenho")) el.value = estado.brilhoDesenho;
-  for (const el of $$(".js-brilho-desenho-valor")) el.textContent = `${estado.brilhoDesenho}%`;
-  for (const el of $$(".js-rolar")) el.checked = estado.rolar;
-  atualizarResumos();
-}
-
-for (const el of $$(".js-brilho-desenho")) {
-  el.addEventListener("input", () => {
-    estado.brilhoDesenho = Number(el.value);
-    sincronizarControles();
-  });
-  el.addEventListener("change", () => gravar("brilhoDesenho", estado.brilhoDesenho));
-}
-for (const el of $$(".js-rolar")) {
-  el.addEventListener("change", () => {
-    estado.rolar = el.checked;
-    gravar("rolar", estado.rolar);
-    sincronizarControles();
-  });
-}
+const msPorPixel = () => (cortina.pixComResposta ? G.MS_POR_PIXEL_COM_RESPOSTA : G.MS_POR_PIXEL);
 
 function resumo(grade) {
   if (!grade) return "";
   const acesos = G.contarAcesos(grade);
   if (!acesos) return "Nenhum LED aceso.";
-  const ms = cortina.pixComResposta ? G.MS_POR_PIXEL_COM_RESPOSTA : G.MS_POR_PIXEL;
-  let t = `${acesos} LEDs acesos · cerca de ${virgula(G.tempoEstimado(grade, ms))} s para enviar`;
+  let t = `${acesos} LEDs · cerca de ${virgula(G.tempoEstimado(grade, msPorPixel()))} s para enviar`;
   const seguro = G.brilhoSeguro(grade, estado.brilhoDesenho);
-  if (seguro < estado.brilhoDesenho) t += ` · brilho vai a ${seguro}% (proteção da fonte)`;
+  if (seguro < estado.brilhoDesenho) t += ` · brilho limitado a ${seguro}%`;
   return t;
 }
 
-function atualizarResumos() {
-  $("#resumo-desenho").textContent = resumo(estado.desenho);
-  $("#resumo-texto").textContent = resumo(gradeDoTexto().grade);
-  $("#resumo-imagem").textContent = resumo(estado.imagem.grade);
-}
-
-function mostrarEnvio(titulo, feitos, total, ms) {
+function mostrarEnvio(titulo, feitos, total) {
   $("#envio").hidden = false;
   $("#envio-titulo").textContent = titulo;
   $("#envio-barra").style.width = `${total ? (100 * feitos) / total : 0}%`;
-  const falta = Math.max(0, Math.ceil(((total - feitos) * ms) / 1000));
-  $("#envio-texto").textContent = `${feitos} de ${total} LEDs · faltam cerca de ${falta} s`;
+  const falta = Math.max(0, Math.ceil(((total - feitos) * msPorPixel()) / 1000));
+  $("#envio-texto").textContent = `${feitos} de ${total} LEDs · faltam ${falta} s`;
 }
 
 $("#envio-cancelar").addEventListener("click", () => estado.envio?.abort());
 
-async function enviarGrade(grade, rotulo = "desenho") {
+async function enviarGrade(grade, { rotulo = "desenho", rolar = false, velocidade = null } = {}) {
   if (estado.envio) {
     avisar("Já tem um desenho sendo enviado.");
     return;
@@ -456,25 +500,29 @@ async function enviarGrade(grade, rotulo = "desenho") {
   if (!exigirConexao()) return;
   const acesos = G.contarAcesos(grade);
   if (!acesos) {
-    if (await confirmar("O desenho está vazio. Quer apagar a cortina?", "Apagar")) executar(() => cortina.apagar(), "Desenho apagado.");
+    if (await confirmar("O desenho está vazio", { texto: "Quer apagar o que está na cortina?", ok: "Apagar" })) {
+      executar(() => cortina.apagar(), "Cortina apagada");
+    }
     return;
   }
   const brilho = G.brilhoSeguro(grade, estado.brilhoDesenho);
-  if (brilho < estado.brilhoDesenho) avisar(`Brilho reduzido para ${brilho}% para proteger a fonte.`, "aviso");
-  const ms = cortina.pixComResposta ? G.MS_POR_PIXEL_COM_RESPOSTA : G.MS_POR_PIXEL;
+  if (brilho < estado.brilhoDesenho) avisar(`Brilho reduzido para ${brilho}% para proteger a fonte`, "aviso");
   const controle = new AbortController();
   estado.envio = controle;
   const titulo = `Enviando ${rotulo}`;
-  mostrarEnvio(titulo, 0, acesos, ms);
+  mostrarEnvio(titulo, 0, acesos);
   try {
     const r = await cortina.desenhar(grade, {
       brilho,
-      rolar: estado.rolar,
+      rolar,
+      velocidade: rolar ? velocidade : null,
       sinal: controle.signal,
-      aoProgresso: (feitos, total) => mostrarEnvio(titulo, feitos, total, ms),
+      aoProgresso: (feitos, total) => mostrarEnvio(titulo, feitos, total),
     });
-    if (r.cancelado) avisar(`Envio cancelado (${r.feitos} de ${r.total} LEDs).`, "aviso");
-    else avisar(`Pronto! ${r.total} LEDs em ${virgula(r.segundos)} s.`, "ok");
+    estado.rolagemNaCortina = rolar && !r.cancelado;
+    estado.efeitoAtivo = null;
+    if (r.cancelado) avisar(`Envio cancelado (${r.feitos} de ${r.total} LEDs)`, "aviso");
+    else avisar(`Pronto! ${r.total} LEDs em ${virgula(r.segundos)} s`, "ok");
   } catch (erro) {
     avisar(erro.message || String(erro), "erro");
     cortina.log(erro.message || String(erro), "erro");
@@ -484,7 +532,179 @@ async function enviarGrade(grade, rotulo = "desenho") {
   }
 }
 
-// ---------- Galeria ----------
+// ============================================================
+//                        Animações
+// ============================================================
+
+let animacoesProntas = false;
+
+function cardLed(nome, meta, grade, { animado = false, aoTocar }) {
+  const canvas = el("canvas", { class: "painel-led", "aria-hidden": "true" });
+  const card = el(
+    "button",
+    { type: "button", class: "card-led", onclick: aoTocar, "aria-label": nome },
+    canvas,
+    el("span", { class: "nome" }, nome, meta ? el("span", { class: "meta" }, meta) : null),
+  );
+  if (animado) animador.adicionar(canvas, grade);
+  else requestAnimationFrame(() => desenharGrade(canvas, grade));
+  return card;
+}
+
+function renderAnimacoes() {
+  if (animacoesProntas) return;
+  animacoesProntas = true;
+  $("#lista-animacoes").replaceChildren(
+    ...ANIMACOES_NATAL.map((item) => {
+      const grade = item.criar();
+      const meta = `Envio de ${Math.max(1, Math.round(G.tempoEstimado(grade)))} s`;
+      return cardLed(item.nome, meta, grade, { animado: true, aoTocar: () => abrirAnimacao(item, grade) });
+    }),
+  );
+}
+
+function abrirAnimacao(item, grade) {
+  const canvas = el("canvas", { class: "painel-led", "aria-label": `Prévia: ${item.nome}` });
+  animador.adicionar(canvas, grade);
+  const textoResumo = el("p", { class: "nota" }, resumo(grade));
+  const brilho = controleBrilhoDesenho();
+  brilho.querySelector("input").addEventListener("input", () => (textoResumo.textContent = resumo(grade)));
+  const velocidade = slider({
+    rotulo: "Velocidade da rolagem (em teste)",
+    min: VELOCIDADE_MIN,
+    max: VELOCIDADE_MAX,
+    valor: estado.velocidadeRolagem,
+    aoMudar: (v) => {
+      estado.velocidadeRolagem = v;
+      gravar("velocidadeRolagem", v);
+      if (estado.rolagemNaCortina && cortina.conectada) executar(() => cortina.velocidade(v));
+    },
+  });
+  abrirFolha(
+    el(
+      "div",
+      {},
+      el("h3", {}, item.nome),
+      el("p", { class: "subtitulo" }, "Anda da direita para a esquerda, sem parar."),
+      canvas,
+      textoResumo,
+      brilho,
+      velocidade,
+      el(
+        "div",
+        { class: "par-botoes" },
+        el(
+          "button",
+          {
+            type: "button",
+            class: "botao primario",
+            onclick: () => {
+              fecharFolha();
+              enviarGrade(grade, { rotulo: item.nome, rolar: true, velocidade: estado.velocidadeRolagem });
+            },
+          },
+          "Mostrar na cortina",
+        ),
+      ),
+      el("button", { type: "button", class: "botao tonal largo", style: "margin-top:10px", onclick: () => abrirNoCriar(grade, item.nome) }, "Editar no Criar"),
+    ),
+    { aoFechar: () => animador.remover(canvas) },
+  );
+}
+
+// ============================================================
+//                         Galeria
+// ============================================================
+
+function itensGaleria() {
+  if (estado.filtroGaleria === "natal") return DESENHOS_NATAL.map((d) => ({ nome: d.nome, criar: d.criar }));
+  if (estado.filtroGaleria === "classicos") return EXEMPLOS.map((d) => ({ nome: d.nome, criar: d.criar }));
+  return estado.galeria.map((d) => ({ nome: d.nome, criar: () => G.deTexto(d.dados), meu: d }));
+}
+
+function renderGaleria() {
+  const itens = itensGaleria();
+  $("#galeria-vazia").hidden = itens.length > 0;
+  $("#galeria-lista").replaceChildren(
+    ...itens.map((item) => {
+      let grade;
+      try {
+        grade = item.criar();
+      } catch {
+        grade = G.novaGrade();
+      }
+      return cardLed(item.nome, null, grade, { aoTocar: () => abrirDesenho(item, grade) });
+    }),
+  );
+}
+
+segmentado(
+  $("#galeria-filtro"),
+  () => estado.filtroGaleria,
+  (v) => {
+    estado.filtroGaleria = v;
+    gravar("filtroGaleria", v);
+    renderGaleria();
+  },
+);
+
+function abrirDesenho(item, grade) {
+  const canvas = el("canvas", { class: "painel-led", "aria-label": `Prévia: ${item.nome}` });
+  const textoResumo = el("p", { class: "nota" }, resumo(grade));
+  const brilho = controleBrilhoDesenho();
+  brilho.querySelector("input").addEventListener("input", () => (textoResumo.textContent = resumo(grade)));
+  let rolar = false;
+  const acoes = [el("button", { type: "button", class: "botao tonal", onclick: () => abrirNoCriar(grade, item.nome) }, "Editar")];
+  if (item.meu) {
+    acoes.push(
+      el(
+        "button",
+        {
+          type: "button",
+          class: "botao perigo",
+          onclick: async () => {
+            if (!(await confirmar(`Excluir “${item.meu.nome}”?`, { ok: "Excluir", perigo: true }))) return;
+            estado.galeria = estado.galeria.filter((x) => x.id !== item.meu.id);
+            gravar("galeria", estado.galeria);
+            renderGaleria();
+          },
+        },
+        "Excluir",
+      ),
+    );
+  } else {
+    acoes.push(el("button", { type: "button", class: "botao tonal", onclick: () => salvarNaGaleria(grade, item.nome) }, "Salvar nos meus"));
+  }
+  abrirFolha(
+    el(
+      "div",
+      {},
+      el("h3", {}, item.nome),
+      canvas,
+      textoResumo,
+      brilho,
+      interruptor({ rotulo: "Rolar da direita para a esquerda", marcado: false, aoMudar: (v) => (rolar = v) }),
+      el(
+        "div",
+        { class: "par-botoes" },
+        el(
+          "button",
+          {
+            type: "button",
+            class: "botao primario",
+            onclick: () => {
+              fecharFolha();
+              enviarGrade(grade, { rotulo: item.nome, rolar, velocidade: estado.velocidadeRolagem });
+            },
+          },
+          "Mostrar na cortina",
+        ),
+      ),
+      el("div", { class: "par-botoes" }, ...acoes),
+    ),
+  );
+  requestAnimationFrame(() => desenharGrade(canvas, grade));
+}
 
 async function salvarNaGaleria(grade, sugestao) {
   if (!G.contarAcesos(grade)) {
@@ -495,75 +715,116 @@ async function salvarNaGaleria(grade, sugestao) {
   if (nome === null) return;
   const item = { id: Date.now().toString(36), nome: nome.trim().slice(0, 30) || "Sem nome", dados: G.paraTexto(grade), criado: Date.now() };
   estado.galeria.unshift(item);
-  if (estado.galeria.length > 60) estado.galeria.length = 60;
+  if (estado.galeria.length > 80) estado.galeria.length = 80;
   if (!gravar("galeria", estado.galeria)) {
     estado.galeria.shift();
     avisar("Não consegui salvar: a memória do navegador está cheia ou bloqueada.", "erro");
     return;
   }
-  avisar(`"${item.nome}" salvo na galeria.`, "ok");
+  avisar(`“${item.nome}” salvo em Meus`, "ok");
+  if (!$("#aba-galeria").hidden) renderGaleria();
 }
 
-function abrirNoEditor(grade, nome) {
+function abrirNoCriar(grade, nome) {
+  fecharFolha();
   guardarDesfazer();
   estado.desenho = G.copiar(grade);
   salvarDesenho();
-  trocarAba("desenhar");
-  avisar(`${nome ? `"${nome}"` : "Desenho"} aberto no Desenhar.`);
+  estado.modoCriar = "desenhar";
+  gravar("modoCriar", "desenhar");
+  renderModoCriar();
+  trocarAba("criar");
+  avisar(`${nome ? `“${nome}”` : "Desenho"} aberto para editar`);
 }
 
-function cartaoGaleria(nome, obterGrade, excluir) {
-  const fig = document.createElement("figure");
-  fig.className = "miniatura";
-  const canvas = document.createElement("canvas");
-  canvas.className = "grade-led";
-  canvas.setAttribute("aria-hidden", "true");
-  const legenda = document.createElement("figcaption");
-  legenda.textContent = nome;
-  const acoes = document.createElement("div");
-  acoes.className = "acoes";
-  const botao = (texto, classe, aoTocar, rotulo) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = `botao ${classe}`;
-    b.textContent = texto;
-    if (rotulo) b.setAttribute("aria-label", rotulo);
-    b.addEventListener("click", aoTocar);
-    acoes.append(b);
-  };
-  let grade = null;
-  try {
-    grade = obterGrade();
-  } catch {
-    legenda.textContent = `${nome} (danificado)`;
-  }
-  if (grade) {
-    botao("Enviar", "", () => enviarGrade(grade, `"${nome}"`));
-    botao("Editar", "secundario", () => abrirNoEditor(grade, nome));
-  }
-  if (excluir) botao("×", "secundario excluir", excluir, `Excluir ${nome}`);
-  fig.append(canvas, legenda, acoes);
-  requestAnimationFrame(() => desenharGrade(canvas, grade, { apagadas: false }));
-  return fig;
+// ============================================================
+//                 Criar: Desenhar · Texto · Foto
+// ============================================================
+
+const renderModoCriar = segmentado(
+  $("#criar-modo"),
+  () => estado.modoCriar,
+  (v) => trocarModoCriar(v),
+);
+
+function trocarModoCriar(modo) {
+  estado.modoCriar = modo;
+  gravar("modoCriar", modo);
+  $("#modo-desenhar").hidden = modo !== "desenhar";
+  $("#modo-texto").hidden = modo !== "texto";
+  $("#modo-foto").hidden = modo !== "foto";
+  renderModoCriar();
+  if (modo === "desenhar") desenharEditor();
+  if (modo === "texto") atualizarTexto();
+  if (modo === "foto") atualizarImagem();
+  atualizarResumoCriar();
 }
 
-function renderGaleria() {
-  const minha = $("#galeria-minha");
-  minha.replaceChildren();
-  $("#galeria-vazia").hidden = estado.galeria.length > 0;
-  for (const item of estado.galeria) {
-    minha.append(
-      cartaoGaleria(item.nome, () => G.deTexto(item.dados), async () => {
-        if (!(await confirmar(`Excluir "${item.nome}"?`, "Excluir"))) return;
-        estado.galeria = estado.galeria.filter((x) => x.id !== item.id);
-        gravar("galeria", estado.galeria);
-        renderGaleria();
-      }),
-    );
-  }
-  const prontos = $("#galeria-prontos");
-  prontos.replaceChildren(...EXEMPLOS.map((e) => cartaoGaleria(e.nome, e.criar)));
+function gradeDoCriar() {
+  if (estado.modoCriar === "texto") return gradeDoTexto().grade;
+  if (estado.modoCriar === "foto") return estado.imagem.grade;
+  return estado.desenho;
 }
+
+const resumoCriar = el("p", { class: "resumo" });
+function atualizarResumoCriar() {
+  const grade = gradeDoCriar();
+  resumoCriar.textContent = grade ? resumo(grade) : "Escolha uma foto para começar.";
+}
+
+$("#criar-envio").append(
+  controleBrilhoDesenho(),
+  interruptor({
+    rotulo: "Rolar da direita para a esquerda",
+    marcado: estado.rolar,
+    aoMudar: (v) => {
+      estado.rolar = v;
+      gravar("rolar", v);
+    },
+  }),
+  resumoCriar,
+  el(
+    "div",
+    { class: "par-botoes" },
+    el(
+      "button",
+      {
+        type: "button",
+        class: "botao primario",
+        onclick: () => {
+          const grade = gradeDoCriar();
+          if (!grade) {
+            avisar("Escolha uma foto primeiro.");
+            return;
+          }
+          const rotulos = { desenhar: "desenho", texto: "texto", foto: "foto" };
+          enviarGrade(grade, { rotulo: rotulos[estado.modoCriar], rolar: estado.rolar, velocidade: estado.velocidadeRolagem });
+        },
+      },
+      "Mostrar na cortina",
+    ),
+  ),
+  el(
+    "div",
+    { class: "par-botoes" },
+    el(
+      "button",
+      {
+        type: "button",
+        class: "botao tonal",
+        onclick: () => {
+          const grade = gradeDoCriar();
+          if (!grade) return;
+          const sugestoes = { desenhar: "Meu desenho", texto: estado.texto.texto.trim().slice(0, 30), foto: "Foto" };
+          salvarNaGaleria(grade, sugestoes[estado.modoCriar]);
+        },
+      },
+      "Salvar",
+    ),
+    el("button", { type: "button", class: "botao tonal", onclick: () => executar(() => cortina.apagar(), "Cortina apagada") }, "Apagar cortina"),
+  ),
+);
+$("#criar-envio .controle").style.marginTop = "0";
 
 // ---------- Desenhar ----------
 
@@ -572,13 +833,13 @@ let tracando = false;
 let ultimaCelula = null;
 
 function desenharEditor() {
-  desenharGrade(editor, estado.desenho);
-  $("#resumo-desenho").textContent = resumo(estado.desenho);
+  if (editor.clientWidth) desenharGrade(editor, estado.desenho);
+  atualizarResumoCriar();
 }
 
 function salvarDesenho() {
   gravar("desenho", G.paraTexto(estado.desenho));
-  $("#resumo-desenho").textContent = resumo(estado.desenho);
+  atualizarResumoCriar();
 }
 
 function guardarDesfazer() {
@@ -624,7 +885,7 @@ editor.addEventListener("pointerdown", (e) => {
       gravar("corPincel", estado.corPincel);
       renderPaletaDesenho();
       escolherFerramenta("pincel");
-      avisar("Cor copiada para o pincel.");
+      avisar("Cor copiada para o pincel");
     } else avisar("Esse LED está apagado.");
     return;
   }
@@ -686,35 +947,18 @@ $("#desfazer").addEventListener("click", () => {
 
 $("#limpar").addEventListener("click", async () => {
   if (!G.contarAcesos(estado.desenho)) return;
-  if (!(await confirmar("Limpar o desenho? (dá para desfazer)", "Limpar"))) return;
+  if (!(await confirmar("Limpar o desenho?", { texto: "Dá para desfazer depois.", ok: "Limpar", perigo: true }))) return;
   guardarDesfazer();
   estado.desenho = G.novaGrade();
   desenharEditor();
   salvarDesenho();
 });
 
-$("#enviar-desenho").addEventListener("click", () => enviarGrade(estado.desenho, "desenho"));
-$("#salvar-desenho").addEventListener("click", () => salvarNaGaleria(estado.desenho, "Meu desenho"));
-
 // ---------- Texto ----------
 
 function gradeDoTexto() {
   const t = estado.texto;
   return textoParaGrade(t.texto, { cor: t.cor, fonte: t.fonte, alinhamento: t.alinhamento });
-}
-
-function segmentado(raiz, chave) {
-  const render = () => {
-    for (const b of raiz.querySelectorAll("button")) b.classList.toggle("ativo", b.dataset.valor === estado.texto[chave]);
-  };
-  for (const b of raiz.querySelectorAll("button")) {
-    b.addEventListener("click", () => {
-      estado.texto[chave] = b.dataset.valor;
-      render();
-      atualizarTexto();
-    });
-  }
-  render();
 }
 
 function atualizarTexto() {
@@ -727,7 +971,7 @@ function atualizarTexto() {
     : `Não coube tudo: cabem ${cap.letras} letras por linha e ${cap.linhas} linhas.`;
   dica.classList.toggle("alerta", !r.cabe);
   gravar("texto", estado.texto);
-  $("#resumo-texto").textContent = resumo(r.grade);
+  atualizarResumoCriar();
 }
 
 const campoTexto = $("#texto");
@@ -736,8 +980,22 @@ campoTexto.addEventListener("input", () => {
   estado.texto.texto = campoTexto.value;
   atualizarTexto();
 });
-segmentado($("#texto-fonte"), "fonte");
-segmentado($("#texto-alinhamento"), "alinhamento");
+segmentado(
+  $("#texto-fonte"),
+  () => estado.texto.fonte,
+  (v) => {
+    estado.texto.fonte = v;
+    atualizarTexto();
+  },
+);
+segmentado(
+  $("#texto-alinhamento"),
+  () => estado.texto.alinhamento,
+  (v) => {
+    estado.texto.alinhamento = v;
+    atualizarTexto();
+  },
+);
 montarPaleta(
   $("#paleta-texto"),
   () => estado.texto.cor,
@@ -747,11 +1005,7 @@ montarPaleta(
   },
 );
 
-$("#enviar-texto").addEventListener("click", () => enviarGrade(gradeDoTexto().grade, "texto"));
-$("#editar-texto").addEventListener("click", () => abrirNoEditor(gradeDoTexto().grade, estado.texto.texto.trim()));
-$("#salvar-texto").addEventListener("click", () => salvarNaGaleria(gradeDoTexto().grade, estado.texto.texto.trim().slice(0, 30)));
-
-// ---------- Imagem ----------
+// ---------- Foto ----------
 
 const reducao = document.createElement("canvas");
 reducao.width = reducao.height = 200;
@@ -772,6 +1026,22 @@ function imagemDeArquivo(arquivo) {
   });
 }
 
+const controlesImagem = {
+  zoom: slider({ rotulo: "Zoom", min: 1, max: 4, passo: 0.05, valor: 1, formato: (v) => `${virgula(v)}×`, aoMover: (v) => ajustarImagem("zoom", v) }),
+  x: slider({ rotulo: "Para os lados", min: -100, max: 100, valor: 0, formato: () => "", aoMover: (v) => ajustarImagem("x", v) }),
+  y: slider({ rotulo: "Para cima e para baixo", min: -100, max: 100, valor: 0, formato: () => "", aoMover: (v) => ajustarImagem("y", v) }),
+  limiar: slider({ rotulo: "Apagar partes escuras", min: 0, max: 150, passo: 5, valor: 30, aoMover: (v) => ajustarImagem("limiar", v) }),
+};
+$("#controles-imagem").append(
+  ...Object.values(controlesImagem),
+  interruptor({ rotulo: "Cores mais vivas", marcado: true, aoMudar: (v) => ajustarImagem("vivas", v) }),
+);
+
+function ajustarImagem(chave, valor) {
+  estado.imagem[chave] = valor;
+  atualizarImagem();
+}
+
 $("#escolher-imagem").addEventListener("click", () => $("#arquivo-imagem").click());
 $("#arquivo-imagem").addEventListener("change", async (e) => {
   const arquivo = e.target.files?.[0];
@@ -784,18 +1054,22 @@ $("#arquivo-imagem").addEventListener("change", async (e) => {
     return;
   }
   Object.assign(estado.imagem, { zoom: 1, x: 0, y: 0 });
-  $("#imagem-zoom").value = 1;
-  $("#imagem-x").value = 0;
-  $("#imagem-y").value = 0;
+  controlesImagem.zoom.definir(1);
+  controlesImagem.x.definir(0);
+  controlesImagem.y.definir(0);
   $("#imagem-controles").hidden = false;
-  $("#imagem-envio").hidden = false;
+  $("#imagem-dica").hidden = true;
   $("#escolher-imagem").textContent = "Escolher outra foto";
+  $("#escolher-imagem").className = "botao tonal largo";
   atualizarImagem();
 });
 
 function atualizarImagem() {
   const { fonte, zoom, x, y, limiar, vivas } = estado.imagem;
-  if (!fonte) return;
+  if (!fonte) {
+    atualizarResumoCriar();
+    return;
+  }
   const w = fonte.naturalWidth || fonte.width;
   const h = fonte.naturalHeight || fonte.height;
   const lado = Math.min(w, h) / zoom;
@@ -803,22 +1077,24 @@ function atualizarImagem() {
   const sy = ((h - lado) / 2) * (1 + y / 100);
 
   const recorte = $("#recorte");
-  const dpr = Math.min(window.devicePixelRatio || 1, 3);
-  const px = Math.round((recorte.clientWidth || 200) * dpr);
-  recorte.width = recorte.height = px;
-  const ctx = recorte.getContext("2d");
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(fonte, sx, sy, lado, lado, 0, 0, px, px);
-  ctx.strokeStyle = "rgba(255,255,255,0.12)";
-  ctx.lineWidth = 1;
-  for (let i = 1; i < 20; i++) {
-    const p = Math.round((i * px) / 20) + 0.5;
-    ctx.beginPath();
-    ctx.moveTo(p, 0);
-    ctx.lineTo(p, px);
-    ctx.moveTo(0, p);
-    ctx.lineTo(px, p);
-    ctx.stroke();
+  if (recorte.clientWidth) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const px = Math.round(recorte.clientWidth * dpr);
+    recorte.width = recorte.height = px;
+    const ctx = recorte.getContext("2d");
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(fonte, sx, sy, lado, lado, 0, 0, px, px);
+    ctx.strokeStyle = "rgba(255,255,255,0.10)";
+    ctx.lineWidth = 1;
+    for (let i = 1; i < 20; i++) {
+      const p = Math.round((i * px) / 20) + 0.5;
+      ctx.beginPath();
+      ctx.moveTo(p, 0);
+      ctx.lineTo(p, px);
+      ctx.moveTo(0, p);
+      ctx.lineTo(px, p);
+      ctx.stroke();
+    }
   }
 
   const rctx = reducao.getContext("2d", { willReadFrequently: true });
@@ -828,34 +1104,15 @@ function atualizarImagem() {
   let grade = G.deRGBA(rctx.getImageData(0, 0, 200, 200).data, 200, { limiar });
   if (vivas) grade = G.realcar(grade, 1.5);
   estado.imagem.grade = grade;
-  desenharGrade($("#previa-imagem"), grade);
-  $("#resumo-imagem").textContent = resumo(grade);
+  if ($("#previa-imagem").clientWidth) desenharGrade($("#previa-imagem"), grade);
+  atualizarResumoCriar();
 }
 
-for (const [id, chave, rotulo, formato] of [
-  ["#imagem-zoom", "zoom", "#zoom-valor", (v) => `${virgula(v, 1)}×`],
-  ["#imagem-x", "x"],
-  ["#imagem-y", "y"],
-  ["#imagem-limiar", "limiar", "#limiar-valor", (v) => String(v)],
-]) {
-  const el = $(id);
-  el.addEventListener("input", () => {
-    estado.imagem[chave] = Number(el.value);
-    if (rotulo) $(rotulo).textContent = formato(Number(el.value));
-    atualizarImagem();
-  });
-}
-$("#imagem-vivas").addEventListener("change", (e) => {
-  estado.imagem.vivas = e.target.checked;
-  atualizarImagem();
-});
+// ============================================================
+//                          início
+// ============================================================
 
-$("#enviar-imagem").addEventListener("click", () => estado.imagem.grade && enviarGrade(estado.imagem.grade, "imagem"));
-$("#editar-imagem").addEventListener("click", () => estado.imagem.grade && abrirNoEditor(estado.imagem.grade, "Imagem"));
-$("#salvar-imagem").addEventListener("click", () => estado.imagem.grade && salvarNaGaleria(estado.imagem.grade, "Foto"));
-
-// ---------- início ----------
-
+iniciarFolha();
 const suporte = suporteBluetooth();
 if (!suporte.ok) {
   $("#aviso").textContent = suporte.motivo;
@@ -864,16 +1121,13 @@ if (!suporte.ok) {
 
 renderFavoritas();
 renderEfeitos();
-sincronizarControles();
 trocarAba(ler("aba", "inicio"));
 
 let relogioTela;
 window.addEventListener("resize", () => {
   clearTimeout(relogioTela);
   relogioTela = setTimeout(() => {
-    if (!$("#aba-desenhar").hidden) desenharEditor();
-    if (!$("#aba-texto").hidden) atualizarTexto();
-    if (!$("#aba-imagem").hidden) atualizarImagem();
+    if (!$("#aba-criar").hidden) trocarModoCriar(estado.modoCriar);
   }, 150);
 });
 

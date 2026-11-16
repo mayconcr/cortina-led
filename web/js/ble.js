@@ -298,13 +298,16 @@ export class Cortina extends EventTarget {
 
   /**
    * Desenha um quadro 20×20: SMVEW 01 (apaga o anterior) → um pacote por pixel aceso na …960B → SMVEW 02,
-   * e MODE 03 se `rolar`. `aoProgresso(feitos, total)`; `sinal` (AbortSignal) interrompe os pixels,
+   * e MODE 03 se `rolar` (+ SPEED se `velocidade`, como o app oficial faz depois de MODE 03 na animação
+   * nativa). `aoProgresso(feitos, total)`; `sinal` (AbortSignal) interrompe os pixels,
    * mas o SMVEW 02 é sempre enviado para fechar o desenho.
    */
-  desenhar(grade, { brilho = P.BRILHO_MAX, rolar = false, aoProgresso, sinal } = {}) {
+  desenhar(grade, { brilho = P.BRILHO_MAX, rolar = false, velocidade = null, aoProgresso, sinal } = {}) {
     this._exigirConexao();
     const pixels = P.quadro(grade, brilho);
-    const fechar = rolar ? [P.smvew(2), P.mode(P.MODO_ROLAR)] : [P.smvew(2)];
+    const fechar = [P.smvew(2)];
+    if (rolar) fechar.push(P.mode(P.MODO_ROLAR));
+    if (rolar && velocidade !== null) fechar.push(P.speed(velocidade));
     return this._enfileirar(async () => {
       const inicio = performance.now();
       await this._cmd(P.smvew(1));
@@ -323,6 +326,11 @@ export class Cortina extends EventTarget {
       this.log(`→ Desenho: ${feitos} de ${pixels.length} pixels em ${segundos.toFixed(1)} s${rolar ? ", rolando" : ""}`);
       return { feitos, total: pixels.length, segundos, cancelado: feitos < pixels.length };
     });
+  }
+
+  /** Só a velocidade (SPEED), para ajustar a rolagem que já está na cortina. */
+  velocidade(v) {
+    return this._comandos(`Velocidade ${v}`, [P.speed(v)]);
   }
 
   /** Apaga o desenho: SMVEW 01 + SMVEW 02, sem pixels (confirmado na Fase 3). */
