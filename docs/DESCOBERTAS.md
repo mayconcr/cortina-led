@@ -21,7 +21,7 @@ Só entra aqui o que foi **observado** na cortina real, com data. Hipóteses fic
 | Comando | Funciona? | O que o usuário viu | Data |
 |---|---|---|---|
 | Ligar / desligar | **Desligar: sim** (`06 'LEDOFF'`, após VER + TIME + LEDS 00 ×2 + handshake JieLi). **Ligar: sim** (`05 'LEDON'`, mesmo preâmbulo) | Cortina acesa (árvore de Natal) **apagou** com LEDOFF; apagada, **acendeu** com LEDON | 2026-11-16 |
-| Cor sólida (`07 'COLO' G R B`, 8 bits; SGLS não existe aqui) | **Sim** | Vermelho a 30% (`00 4C 00`): cortina toda vermelha | 2026-11-16 |
+| Cor sólida (`07 'COLO' G R B`, 8 bits; SGLS não existe aqui) | **Sim** | Vermelho, verde e azul a 30% (`00 4C 00`, `4C 00 00`, `00 00 4C`): cortina inteira na cor certa; ordem dos canais G R B confirmada. Duas cores na mesma conexão com 5 s de pausa funcionam | 2026-11-16 |
 | Efeitos (MULT) | | | |
 | Pixel único (DOOD) | | | |
 | Todos (DOOD posição 400) | | | |
