@@ -117,10 +117,11 @@ class TestCapturaIphone(unittest.TestCase):
         self.assertEqual(self.uteis(p.mode(3)), hx("05 4D 4F 44 45 03"))
         self.assertEqual(self.uteis(p.smvew(1)), hx("06 53 4D 56 45 57 01"))
         self.assertEqual(self.uteis(p.smvew(2)), hx("06 53 4D 56 45 57 02"))
-        # captura 6586: 05 07 05 FD 54 01 (brilho 100 %)
-        self.assertEqual(p.pixel_xy(7, 5, 0xFD, 0x54, 0x01, brilho=100), hx("05 07 05 FD 54 01 00 00 00 00 00 00 00 00 00 00"))
-        self.assertEqual(encrypt(p.pixel_xy(7, 5, 0xFD, 0x54, 0x01, brilho=100)).hex(), "bc69ba6b343cb77fe4c75d952452feec")
+        # captura 6586: 05 07 05 FD 54 01 (brilho 100 %); os bytes de cor são G R B (visto na cortina: verde)
+        self.assertEqual(p.pixel_xy(7, 5, 0x54, 0xFD, 0x01, brilho=100), hx("05 07 05 FD 54 01 00 00 00 00 00 00 00 00 00 00"))
+        self.assertEqual(encrypt(p.pixel_xy(7, 5, 0x54, 0xFD, 0x01, brilho=100)).hex(), "bc69ba6b343cb77fe4c75d952452feec")
         self.assertEqual(p.pixel_xy(1, 1, 255, 255, 255)[3:6], bytes([102, 102, 102]))  # 40 % por padrão
+        self.assertEqual(p.pixel_xy(1, 1, 255, 0, 0, brilho=100)[3:6], bytes([0, 255, 0]))  # vermelho = 00 FF 00
         with self.assertRaises(ValueError):
             p.pixel_xy(21, 0, 0, 0, 0)
         with self.assertRaises(ValueError):

@@ -168,13 +168,14 @@ def smvew(fase: int) -> bytes:
 
 
 def pixel_xy(x: int, y: int, r: int, g: int, b: int, brilho: int = 40) -> bytes:
-    """Um pixel para a característica …960B (cifrado com AES): 05 X Y R G B. Brilho padrão 40 % (CLAUDE.md)."""
+    """Um pixel para a característica …960B (cifrado com AES): 05 X Y G R B (ordem G R B, como o COLO;
+    confirmado na cortina em 2026-11-16). Brilho padrão 40 % (CLAUDE.md)."""
     _porcento(brilho, "brilho")
     for v, nome in ((x, "x"), (y, "y")):
         if not isinstance(v, int) or not 0 <= v <= 20:
             raise ValueError(f"{nome} precisa ser de 0 a 20, veio {v!r}")
     canais = [(_canal(v, n) * brilho // 100) & 0xFF for v, n in ((r, "R"), (g, "G"), (b, "B"))]
-    return completar(bytes([0x05, x, y]) + bytes(canais))
+    return completar(bytes([0x05, x, y, canais[1], canais[0], canais[2]]))
 
 
 # ---------- TYPE2 (PROTOCOLO.md §5), só os comandos básicos ----------
