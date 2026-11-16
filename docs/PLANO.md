@@ -64,7 +64,7 @@ Legenda: `[ ]` pendente · `[x]` concluída · 🛑 checkpoint (pare e espere o 
   - **Galeria:** salvar e carregar desenhos (localStorage, com try/catch).
   - **Texto:** fonte bitmap 5×7 → grade, com cor e alinhamento.
   - **Imagem:** foto → recorte quadrado → 20×20, com ajuste de brilho.
-- [ ] 4.6 PWA (`manifest.webmanifest` + ícone) para "Adicionar à Tela de Início".
+- [x] 4.6 PWA (`manifest.webmanifest` + ícone) para "Adicionar à Tela de Início". Ícones gerados por `ferramentas/icones.py`. Atenção: no iPhone, o atalho criado pelo Safari abre sem Bluetooth; no Bluefy, use os favoritos dele.
 - [ ] 4.7 Testar localmente no Chrome desktop, que tem Web Bluetooth, se o computador tiver BLE.
 - [ ] 4.8 Publicar no **GitHub Pages**: o Web Bluetooth exige HTTPS. Use `gh` se estiver disponível; senão, guie o usuário passo a passo.
 - [ ] 4.9 Checklist no iPhone com o usuário: abrir no Bluefy → conectar → cada aba.
