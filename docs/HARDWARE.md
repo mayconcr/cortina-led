@@ -10,6 +10,9 @@
 | QR code da etiqueta | `http://api.e-toys.cn/page/app/138`: só a página de download do app |
 | Celular do usuário | iPhone |
 
+## Controlador: chip JieLi (achado em 2026-11-16)
+O APK oficial carrega `libjl_ota_auth.so` (autenticação OTA da JieLi) e 14 firmwares `.ufw` em `assets/ota/`, incluindo `TR2110R002-10…13`, a família da nossa `TR2110R002-15`. Então o SoC Bluetooth desta cortina é **JieLi** (杰理), e o serviço `0xAE00` é o canal OTA/autenticação padrão desse chip. A hipótese ST17H66B abaixo vale para a cortina da atomic14, não necessariamente para esta.
+
 ## O que provavelmente tem dentro (cortina igual documentada pela atomic14)
 A atomic14 documentou uma cortina 2 m × 2 m de 400 LEDs do AliExpress, muito provavelmente da mesma família:
 - Controlador com SoC Bluetooth LE **ST17H66B**.
