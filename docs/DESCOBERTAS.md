@@ -25,7 +25,7 @@ Só entra aqui o que foi **observado** na cortina real, com data. Hipóteses fic
 | Efeitos (`EFF` ×3 + `LIGHT` + `SPEED`; MULT não existe aqui) | **Aceitos**: efeitos 1–10 a 40%, velocidade 8; a cortina devolveu `EFF 00/01/02 OK` para os 10 (30 ACKs) | o usuário viu os 10 efeitos trocando; nomes provisórios na tabela abaixo | 2026-11-16 |
 | Pixel único (`SMVEW 01` + `05 X Y G R B` na `…960B` + `SMVEW 02`; DOOD não existe aqui) | **Sim** | Pixel `05 07 05 FD 54 01` + `MODE 03`: **um LED verde andando da direita para a esquerda**, na altura ~8 a partir de cima (palpite do usuário) | 2026-11-16 |
 | Todos (DOOD posição 400) | | | |
-| Quadro em massa (DOOT) | | | |
+| Quadro completo (`SMVEW 01` + até 400 pixels + `SMVEW 02`; DOOT não existe aqui) | **Sim** | Smile (78 px), xadrez (200 px) e degradê (400 px) completos, sem buracos | 2026-11-16 |
 
 ## Efeitos (nomes dados pelo usuário)
 | ID | Nome | Observação |
@@ -48,9 +48,9 @@ Só entra aqui o que foi **observado** na cortina real, com data. Hipóteses fic
 - Fórmula `mapear(col, lin)` → bytes `(lin, col)`, com `col` e `lin` de 0 a 19 (`ferramentas/protocolo.py`).
 
 ## Desempenho
-- Tempo de um quadro completo (pior caso):
-- Tempo de um quadro típico:
-- Quadros por segundo possíveis:
+- Tempo de um quadro completo (pior caso, 400 pixels): **12,6 s** com pixels sem resposta e pausa de 30 ms (32 ms por pixel). Com resposta: 91 ms por pixel (~36 s).
+- Tempo de um quadro típico: smile de 78 pixels em 2,4 s; xadrez de 200 pixels em 6,3 s. Mais ~3,5 s fixos de conexão + preâmbulo + handshake.
+- Quadros por segundo possíveis: ~0,08 (quadro cheio). **Animação quadro a quadro não é viável**; para movimento usar os modos nativos (`MODE 03` rola o desenho) ou a Fase 6 (ESP32).
 
 ## Diário
 <!-- AAAA-MM-DD: o que foi testado, o que aconteceu, decisões -->
@@ -80,3 +80,4 @@ Só entra aqui o que foi **observado** na cortina real, com data. Hipóteses fic
 - 2026-11-16 01:36: **Mapa da grade confirmado** com os 4 cantos em cores diferentes: origem em cima à esquerda, 1º byte = linha (para baixo), 2º byte = coluna (para a direita), ambos base 0. Todos os 4 LEDs acenderam exatamente nos cantos.
 - 2026-11-16 01:41: **Teste da borda (3.3):** 76 pixels verdes a 40% no contorno → **moldura completa, sem falhas** (usuário). Tempo: 6,93 s com escrita com resposta + pausa de 30 ms = 91 ms por pixel.
 - 2026-11-16 01:44: **Quadro `smile` (3.5):** 78 pixels (amarelo, azul, vermelho a 40%) com `--pix-sem-resposta` (Write Command, como o app) → **rosto completo, sem pixel faltando** (usuário). Tempo: 2,43 s = 31 ms por pixel (é praticamente só a pausa de 30 ms).
+- 2026-11-16 01:47: **Xadrez (200 px) e degradê (400 px)** com pixels sem resposta: **os dois certos, sem buracos** (usuário). Tempos: 6,26 s e 12,60 s.
