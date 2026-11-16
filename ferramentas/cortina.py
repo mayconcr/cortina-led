@@ -57,6 +57,7 @@ PIX = "d44bc439-abfd-45a2-b575-92541612960b"  # pixels do desenho (SMVEW), cifra
 # Serviço 0xAE00 (JieLi RCSP). Usado SOMENTE pelo handshake de autenticação (--auth, PROTOCOLO §5ter).
 AE01 = "0000ae01-0000-1000-8000-00805f9b34fb"
 AE02 = "0000ae02-0000-1000-8000-00805f9b34fb"
+AUTH, PAUSA = "@auth", "@pausa"  # itens especiais da fila do `roteiro` (não são escritas simples)
 
 PAUSA_ENTRE_ESCRITAS = 0.030  # CLAUDE.md regra 6: pelo menos 30 ms
 PALETA_PADRAO = [(255, 0, 0), (255, 216, 0), (0, 255, 0), (0, 255, 255), (0, 0, 255), (255, 0, 255), (255, 255, 255)]
@@ -127,7 +128,11 @@ def passo(token: str) -> list[Escrita]:
         from datetime import datetime
         agora = datetime.now()
         dw = agora.isoweekday()  # o app mandou 01 numa segunda-feira: 1 = segunda ... 7 = domingo
-        return [Escrita(CMD, p.hora(dw, agora.hour, agora.minute, agora.second), f"TIME dw={dw} {agora:%H:%M:%S}")]
+        return [Escrita(CMD, p.hora(dw, agora.hour, agora.minute, agora.second), f"TIME dw={dw} {agora:%H:%M:%S} + cauda do app")]
+    if nome == "auth":
+        return [Escrita(AUTH, b"", "handshake JieLi no 0xAE01 (PROTOCOLO §5ter)")]
+    if nome == "pausa":
+        return [Escrita(PAUSA, bytes([args[0] if args else 1]), f"pausa de {args[0] if args else 1} s")]
     if nome == "cor":
         r, g, b = args[:3]
         brilho = args[3] if len(args) > 3 else 100
@@ -156,6 +161,9 @@ def passo(token: str) -> list[Escrita]:
 def mostrar(fila: list[Escrita]) -> None:
     print(f"Fila: {len(fila)} escrita(s)")
     for i, e in enumerate(fila, 1):
+        if e.caracteristica in (AUTH, PAUSA):
+            print(f"  {i}. [----] {e.rotulo}")
+            continue
         alvo = {CMD: "CMD ", DATA: "DATA", PIX: "PIX "}[e.caracteristica]
         print(f"  {i}. [{alvo}] {e.rotulo}")
         print(f"       texto puro : {p.hexs(e.puro)}")
@@ -169,7 +177,7 @@ def ascii_legivel(dados: bytes) -> str:
     return "".join(chr(b) if 32 <= b < 127 else "." for b in dados)
 
 
-async def autenticar(cliente) -> bool:
+async def autenticar(cliente, caixa: "asyncio.Queue[bytes]") -> bool:
     """Handshake JieLi no serviço 0xAE00 (PROTOCOLO §5ter). Só os 3 pacotes vistos na captura do app.
 
     app  -> AE01: 00 + 16 aleatórios      cortina -> AE02: 01 + E1(aleatórios)
@@ -179,12 +187,6 @@ async def autenticar(cliente) -> bool:
     import os
 
     from ferramentas import jl_auth
-
-    caixa: asyncio.Queue[bytes] = asyncio.Queue()
-
-    def ao_notificar_ae02(_c, dados: bytearray):
-        print(f"[auth] <- AE02 ({len(dados)} B): {p.hexs(bytes(dados))}")
-        caixa.put_nowait(bytes(dados))
 
     async def esperar(descricao: str) -> bytes | None:
         try:
@@ -198,32 +200,25 @@ async def autenticar(cliente) -> bool:
         await cliente.write_gatt_char(AE01, pacote, response=False)
         await asyncio.sleep(PAUSA_ENTRE_ESCRITAS)
 
-    await cliente.start_notify(AE02, ao_notificar_ae02)
-    try:
-        desafio = os.urandom(16)
-        await escrever(jl_auth.pacote_desafio(desafio), "desafio (00 + 16 aleatórios)")
-        r = await esperar("resposta ao meu desafio")
-        if r is None or len(r) != 17 or r[0] != 0x01:
-            return False
-        if r[1:] != jl_auth.resposta(desafio):
-            print("[auth] a cortina respondeu algo diferente do esperado; parando")
-            return False
-        print("[auth] a cortina provou conhecer a chave")
-        await escrever(jl_auth.PASS, "02 'pass'")
-        r = await esperar("desafio da cortina")
-        if r is None or len(r) != 17 or r[0] != 0x00:
-            return False
-        await escrever(jl_auth.pacote_resposta(r[1:]), "resposta (01 + E1)")
-        r = await esperar("'pass' final")
-        if r != jl_auth.PASS:
-            return False
-        print("[auth] OK: autenticado")
-        return True
-    finally:
-        try:
-            await cliente.stop_notify(AE02)
-        except Exception:
-            pass
+    desafio = os.urandom(16)
+    await escrever(jl_auth.pacote_desafio(desafio), "desafio (00 + 16 aleatórios)")
+    r = await esperar("resposta ao meu desafio")
+    if r is None or len(r) != 17 or r[0] != 0x01:
+        return False
+    if r[1:] != jl_auth.resposta(desafio):
+        print("[auth] a cortina respondeu algo diferente do esperado; parando")
+        return False
+    print("[auth] a cortina provou conhecer a chave")
+    await escrever(jl_auth.PASS, "02 'pass'")
+    r = await esperar("desafio da cortina")
+    if r is None or len(r) != 17 or r[0] != 0x00:
+        return False
+    await escrever(jl_auth.pacote_resposta(r[1:]), "resposta (01 + E1)")
+    r = await esperar("'pass' final")
+    if r != jl_auth.PASS:
+        return False
+    print("[auth] OK: autenticado")
+    return True
 
 
 async def enviar(args, fila: list[Escrita]) -> int:
@@ -250,13 +245,31 @@ async def enviar(args, fila: list[Escrita]) -> int:
     async with BleakClient(dispositivo, timeout=25.0) as cliente:
         print(f"[conexão] conectado, MTU {cliente.mtu_size}")
         await cliente.start_notify(NOTIFY, ao_notificar)  # antes de qualquer escrita
-        if args.auth and not await autenticar(cliente):
+        caixa_ae02: asyncio.Queue[bytes] = asyncio.Queue()
+        usa_auth = args.auth or any(e.caracteristica == AUTH for e in fila)
+        if usa_auth:  # como o app: notificações do 0xAE02 ligadas desde o início e até o fim da conexão
+
+            def ao_notificar_ae02(_c, dados: bytearray):
+                print(f"[auth] <- AE02 ({len(dados)} B): {p.hexs(bytes(dados))}")
+                caixa_ae02.put_nowait(bytes(dados))
+
+            await cliente.start_notify(AE02, ao_notificar_ae02)
+        if args.auth and not await autenticar(cliente, caixa_ae02):
             print("[auth] FALHOU: não vou enviar a fila de comandos")
             return 3
         com_resposta = args.com_resposta
         modo = "com resposta (ATT Write Request)" if com_resposta else "sem resposta (ATT Write Command, como o app oficial nas capturas)"
         print(f"[modo] escrita {modo}")
         for i, e in enumerate(fila, 1):  # fila única, uma escrita por vez
+            if e.caracteristica == AUTH:
+                if not await autenticar(cliente, caixa_ae02):
+                    print("[auth] FALHOU: parando a fila aqui")
+                    return 3
+                continue
+            if e.caracteristica == PAUSA:
+                print(f"[pausa] {e.puro[0]} s")
+                await asyncio.sleep(e.puro[0])
+                continue
             alvo = {CMD: "CMD ", DATA: "DATA", PIX: "PIX "}[e.caracteristica]
             t0 = time.monotonic()
             await cliente.write_gatt_char(e.caracteristica, e.fio, response=com_resposta)

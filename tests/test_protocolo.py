@@ -86,6 +86,12 @@ class TestCapturaIphone(unittest.TestCase):
         self.assertEqual(self.uteis(p.ver()), hx("03 56 45 52"))
         self.assertEqual(self.uteis(p.leds(0)), hx("05 4C 45 44 53 00"))
         self.assertEqual(self.uteis(p.hora(1, 0, 40, 28)), hx("08 54 49 4D 45 01 00 28 1C"))
+        # captura 2508, pacote inteiro com a cauda do app, e o cifrado idêntico ao que foi ao ar
+        self.assertEqual(p.hora(1, 0, 40, 28), hx("08 54 49 4D 45 01 00 28 1C A5 5A A5 00 03 02 06"))
+        self.assertEqual(encrypt(p.hora(1, 0, 40, 28)).hex(), "6c5e1b96aeca76b7d4e03a441a88afcb")
+        self.assertEqual(p.hora(1, 0, 40, 28, cauda=b"")[9:], bytes(7))
+        with self.assertRaises(ValueError):
+            p.hora(1, 0, 0, 0, cauda=b"\x01")
 
     def test_liga_desliga(self):
         self.assertEqual(p.ledoff(), hx("06 4C 45 44 4F 46 46 00 00 00 00 00 00 00 00 00"))

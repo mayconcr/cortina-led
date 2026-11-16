@@ -103,12 +103,19 @@ def ledon_05() -> bytes:
     return completar(b"\x05LEDON")
 
 
-def hora(dia_semana: int, h: int, m: int, s: int) -> bytes:
-    """08 'TIME' DW HH MM SS, como o app (regra 4 do CLAUDE.md: só com pedido explícito do usuário)."""
+# Cauda fixa que o app iOS manda depois da hora no TIME (captura 2508). A marca A5 5A A5 também
+# aparece nas capturas Android (seguida de 01 02 06 09). Significado desconhecido.
+CAUDA_TIME_APP = bytes.fromhex("A5 5A A5 00 03 02 06")
+
+
+def hora(dia_semana: int, h: int, m: int, s: int, cauda: bytes = CAUDA_TIME_APP) -> bytes:
+    """08 'TIME' DW HH MM SS + cauda, como o app (regra 4 do CLAUDE.md: só com pedido explícito do usuário)."""
     for v, nome, maximo in ((dia_semana, "dia da semana", 7), (h, "hora", 23), (m, "minuto", 59), (s, "segundo", 59)):
         if not isinstance(v, int) or not 0 <= v <= maximo:
             raise ValueError(f"{nome} fora da faixa 0..{maximo}: {v!r}")
-    return completar(b"\x08TIME" + bytes([dia_semana, h, m, s]))
+    if cauda not in (CAUDA_TIME_APP, b""):
+        raise ValueError("a cauda do TIME só pode ser a do app ou vazia")
+    return completar(b"\x08TIME" + bytes([dia_semana, h, m, s]) + cauda)
 
 
 def colo8(r: int, g: int, b: int, brilho: int = 100) -> bytes:
