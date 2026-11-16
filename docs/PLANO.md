@@ -41,17 +41,18 @@ Legenda: `[ ]` pendente · `[x]` concluída · 🛑 checkpoint (pare e espere o 
 
 ## Fase 3: Pixels e mapeamento da grade 20×20
 > ⚠️ **Revisar antes de começar (2026-11-16):** esta cortina não tem DOOD/DOOT. O desenho usa `SMVEW 01` → um pacote AES por pixel `05 X Y R G B` na característica `…960B` → `SMVEW 02` → `MODE 03` (ver `PROTOCOLO.md` §5bis). As tarefas abaixo valem com essa troca: 3.1/3.2 viram "acender (X,Y) = (1,1), (20,1), (1,20), (20,20)" para achar a origem e o sentido dos eixos; 3.4 vira "descobrir como apagar o desenho"; 3.5/3.6 viram "quadro completo = até 400 pacotes; medir o tempo".
-- [ ] 3.1 `cortina.py pixel IDX R G B` (DOOD, um pixel). Primeiro teste com o exemplo documentado (índice 0). Pergunte onde o LED acendeu.
-- [ ] 3.2 Acender os índices 1, 19, 20, 21, 39, 399, um por vez, perguntando a posição a cada um. Os índices acima de 255 usam posição de 16 bits: confirme os bytes com o usuário antes.
-- [ ] 3.3 Deduzir o mapeamento índice → (coluna, linha): sentido, zigue-zague e canto de origem. Implementar `mapear(col, lin) → índice` e um teste visual (acender a borda da grade).
-- [ ] 3.4 "Apagar tudo": primeiro via DOOT em preto, que é seguro. Depois, com confirmação, testar DOOD "todos" com a posição `01 90`. Se nada funcionar, considerar o `DEN` (§5.4), também com confirmação.
-- [ ] 3.5 `cortina.py quadro arquivo.json` (DOOT com run-length): desenhar xadrez, smile e um degradê.
-- [ ] 3.6 Medir o tempo de um quadro completo (pior caso e caso típico) e calcular quantos quadros por segundo dá para atualizar. Isso decide se animação é viável.
+- [x] 3.1 `cortina.py pixel IDX R G B` (DOOD, um pixel). Primeiro teste com o exemplo documentado (índice 0). Pergunte onde o LED acendeu.
+- [x] 3.2 Acender os índices 1, 19, 20, 21, 39, 399, um por vez, perguntando a posição a cada um. Os índices acima de 255 usam posição de 16 bits: confirme os bytes com o usuário antes.
+- [x] 3.3 Deduzir o mapeamento índice → (coluna, linha): sentido, zigue-zague e canto de origem. Implementar `mapear(col, lin) → índice` e um teste visual (acender a borda da grade).
+- [x] 3.4 "Apagar tudo": primeiro via DOOT em preto, que é seguro. Depois, com confirmação, testar DOOD "todos" com a posição `01 90`. Se nada funcionar, considerar o `DEN` (§5.4), também com confirmação.
+- [x] 3.5 `cortina.py quadro arquivo.json` (DOOT com run-length): desenhar xadrez, smile e um degradê.
+- [x] 3.6 Medir o tempo de um quadro completo (pior caso e caso típico) e calcular quantos quadros por segundo dá para atualizar. Isso decide se animação é viável.
 
 **Aceite:** mapeamento confirmado visualmente, quadro completo desenhado, tempo medido e registrado.
 🛑
 
 ## Fase 4: App web para iPhone (Bluefy)
+> ⚠️ **Ajustes pelo protocolo real (2026-11-16):** `protocol.js` deve espelhar `ferramentas/protocolo.py` §5bis (VER, TIME, LEDS, LEDON/LEDOFF, COLO, EFF+LIGHT+SPEED, IMAG, MODE, SMVEW, pixel) e ganhar um `jlauth.js` (E1/SAFER+, espelho de `ferramentas/jl_auth.py`, com os vetores da captura). `ble.js` precisa de `optionalServices: [0xfff0, 0xae00]` e fazer preâmbulo + handshake a cada conexão. Paleta de efeitos e DOOT/DOOD não existem; "enviar desenho" leva até ~13 s (mostrar progresso). Animação quadro a quadro está fora; texto/imagem viram desenho parado ou rolagem nativa (`MODE 03`).
 - [ ] 4.1 `web/js/aes.js`: AES-128 em JS puro (cifrar e decifrar), com teste `node --test` usando os vetores do §2.
 - [ ] 4.2 `web/js/protocol.js`: funções puras equivalentes às do Python (turn, sgls, mult + paleta, dood, doot com run-length), com testes que comparam os bytes com os gerados pelo Python.
 - [ ] 4.3 `web/js/ble.js`: `requestDevice({filters:[{namePrefix:'IDL-'},{namePrefix:'ISP-'}], optionalServices:[0xfff0]})`, fila de escrita, notificações, reconexão e aviso amigável se o navegador não tiver Web Bluetooth ("abra no Bluefy").

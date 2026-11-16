@@ -24,7 +24,7 @@ Só entra aqui o que foi **observado** na cortina real, com data. Hipóteses fic
 | Cor sólida (`07 'COLO' G R B`, 8 bits; SGLS não existe aqui) | **Sim** | Vermelho, verde e azul a 30% (`00 4C 00`, `4C 00 00`, `00 00 4C`): cortina inteira na cor certa; ordem dos canais G R B confirmada. Duas cores na mesma conexão com 5 s de pausa funcionam. Branco a 30% (`4C 4C 4C`): uniforme e estável | 2026-11-16 |
 | Efeitos (`EFF` ×3 + `LIGHT` + `SPEED`; MULT não existe aqui) | **Aceitos**: efeitos 1–10 a 40%, velocidade 8; a cortina devolveu `EFF 00/01/02 OK` para os 10 (30 ACKs) | o usuário viu os 10 efeitos trocando; nomes provisórios na tabela abaixo | 2026-11-16 |
 | Pixel único (`SMVEW 01` + `05 X Y G R B` na `…960B` + `SMVEW 02`; DOOD não existe aqui) | **Sim** | Pixel `05 07 05 FD 54 01` + `MODE 03`: **um LED verde andando da direita para a esquerda**, na altura ~8 a partir de cima (palpite do usuário) | 2026-11-16 |
-| Todos (DOOD posição 400) | | | |
+| Apagar o desenho (`SMVEW 01` + `SMVEW 02` sem pixels; DOOD "todos" não existe aqui) | **Sim** | Com o degradê de 400 LEDs na tela: **apagou tudo** | 2026-11-16 |
 | Quadro completo (`SMVEW 01` + até 400 pixels + `SMVEW 02`; DOOT não existe aqui) | **Sim** | Smile (78 px), xadrez (200 px) e degradê (400 px) completos, sem buracos | 2026-11-16 |
 
 ## Efeitos (nomes dados pelo usuário)
@@ -81,3 +81,4 @@ Só entra aqui o que foi **observado** na cortina real, com data. Hipóteses fic
 - 2026-11-16 01:41: **Teste da borda (3.3):** 76 pixels verdes a 40% no contorno → **moldura completa, sem falhas** (usuário). Tempo: 6,93 s com escrita com resposta + pausa de 30 ms = 91 ms por pixel.
 - 2026-11-16 01:44: **Quadro `smile` (3.5):** 78 pixels (amarelo, azul, vermelho a 40%) com `--pix-sem-resposta` (Write Command, como o app) → **rosto completo, sem pixel faltando** (usuário). Tempo: 2,43 s = 31 ms por pixel (é praticamente só a pausa de 30 ms).
 - 2026-11-16 01:47: **Xadrez (200 px) e degradê (400 px)** com pixels sem resposta: **os dois certos, sem buracos** (usuário). Tempos: 6,26 s e 12,60 s.
+- 2026-11-16 01:50: **Fase 3 concluída.** `cortina.py apagar` (`SMVEW 01` + `SMVEW 02` sem pixels) apaga tudo. Resumo: pixel = `05 LINHA COLUNA G R B` na `…960B`; origem em cima à esquerda; `SMVEW 01` limpa; sem `MODE` fica parado; `MODE 03` rola para a esquerda; quadro cheio em 12,6 s com pixels sem resposta. Pendências para depois: conjunto mínimo do preâmbulo; outros valores de `MODE`; lista de animações `IMAG`; brilho do desenho via `LIGHT`.
