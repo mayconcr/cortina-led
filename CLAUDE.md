@@ -16,6 +16,9 @@ O app final roda no iPhone pelo navegador Bluefy.
 - **20 colunas × 20 LEDs = 400 LEDs** endereçáveis.
 - O usuário usa **iPhone**. O Safari não tem Web Bluetooth, então o app web precisa do navegador **Bluefy**.
 
+## Protocolo real desta cortina (descoberto em 2026-11-16)
+A cortina é `TR2110R002-15`, chip JieLi, e **não** fala os comandos TYPE2/DOOD/DOOT do kit original. O que vale é o `docs/PROTOCOLO.md` **§5bis** (comandos capturados do app oficial: `VER`, `TIME`, `LEDS`, `LEDOFF`, `LEDON`, `COLO`, `EFF`, `LIGHT`, `SPEED`, `IMAG`, `MODE`, `SMVEW` + pixels na `…960B`) e **§5ter** (handshake JieLi no `0xAE01`, obrigatório antes dos comandos de luz). Sequência que funciona: `cortina.py --com-resposta roteiro ver hora leds leds auth pausa:2 <comandos>`. No `0xAE00` só o handshake é permitido.
+
 ## Regras de segurança (inegociáveis)
 O autor da engenharia reversa queimou um controlador ao mandar bytes inválidos. Por isso:
 1. Só envie pacotes cuja estrutura está documentada em `docs/PROTOCOLO.md`. Nada de fuzzing, varredura de bytes ou "testar para ver o que acontece".
