@@ -20,6 +20,7 @@ Opções:
                          opcode 0x52), que é o que o app Android usa nas capturas btsnoop. As duas foram
                          testadas na cortina em 2026-11-16 e nenhuma mudou o resultado.
     --nome NOME          nome Bluetooth (padrão IDL-6A9E5C)
+    --auth               handshake JieLi (3 pacotes no 0xAE01) antes dos comandos, como o app faz (PROTOCOLO §5ter)
     --cifra aes|tiro     cifra aplicada na CMD (padrão aes). "tiro" é a segunda cifra do APK oficial (PROTOCOLO §2)
 
 Segurança (CLAUDE.md): só pacotes do PROTOCOLO.md, efeito 1–10 validado em protocolo.py,
@@ -53,6 +54,9 @@ CMD = "d44bc439-abfd-45a2-b575-925416129600"
 DATA = "d44bc439-abfd-45a2-b575-92541612960a"
 NOTIFY = "d44bc439-abfd-45a2-b575-925416129601"
 PIX = "d44bc439-abfd-45a2-b575-92541612960b"  # pixels do desenho (SMVEW), cifrados com AES (PROTOCOLO §5bis)
+# Serviço 0xAE00 (JieLi RCSP). Usado SOMENTE pelo handshake de autenticação (--auth, PROTOCOLO §5ter).
+AE01 = "0000ae01-0000-1000-8000-00805f9b34fb"
+AE02 = "0000ae02-0000-1000-8000-00805f9b34fb"
 
 PAUSA_ENTRE_ESCRITAS = 0.030  # CLAUDE.md regra 6: pelo menos 30 ms
 PALETA_PADRAO = [(255, 0, 0), (255, 216, 0), (0, 255, 0), (0, 255, 255), (0, 0, 255), (255, 0, 255), (255, 255, 255)]
@@ -165,6 +169,63 @@ def ascii_legivel(dados: bytes) -> str:
     return "".join(chr(b) if 32 <= b < 127 else "." for b in dados)
 
 
+async def autenticar(cliente) -> bool:
+    """Handshake JieLi no serviço 0xAE00 (PROTOCOLO §5ter). Só os 3 pacotes vistos na captura do app.
+
+    app  -> AE01: 00 + 16 aleatórios      cortina -> AE02: 01 + E1(aleatórios)
+    app  -> AE01: 02 'pass'               cortina -> AE02: 00 + 16 aleatórios
+    app  -> AE01: 01 + E1(desafio)        cortina -> AE02: 02 'pass'
+    """
+    import os
+
+    from ferramentas import jl_auth
+
+    caixa: asyncio.Queue[bytes] = asyncio.Queue()
+
+    def ao_notificar_ae02(_c, dados: bytearray):
+        print(f"[auth] <- AE02 ({len(dados)} B): {p.hexs(bytes(dados))}")
+        caixa.put_nowait(bytes(dados))
+
+    async def esperar(descricao: str) -> bytes | None:
+        try:
+            return await asyncio.wait_for(caixa.get(), timeout=4.0)
+        except asyncio.TimeoutError:
+            print(f"[auth] sem resposta ({descricao})")
+            return None
+
+    async def escrever(pacote: bytes, rotulo: str) -> None:
+        print(f"[auth] -> AE01 {rotulo}: {p.hexs(pacote)}")
+        await cliente.write_gatt_char(AE01, pacote, response=False)
+        await asyncio.sleep(PAUSA_ENTRE_ESCRITAS)
+
+    await cliente.start_notify(AE02, ao_notificar_ae02)
+    try:
+        desafio = os.urandom(16)
+        await escrever(jl_auth.pacote_desafio(desafio), "desafio (00 + 16 aleatórios)")
+        r = await esperar("resposta ao meu desafio")
+        if r is None or len(r) != 17 or r[0] != 0x01:
+            return False
+        if r[1:] != jl_auth.resposta(desafio):
+            print("[auth] a cortina respondeu algo diferente do esperado; parando")
+            return False
+        print("[auth] a cortina provou conhecer a chave")
+        await escrever(jl_auth.PASS, "02 'pass'")
+        r = await esperar("desafio da cortina")
+        if r is None or len(r) != 17 or r[0] != 0x00:
+            return False
+        await escrever(jl_auth.pacote_resposta(r[1:]), "resposta (01 + E1)")
+        r = await esperar("'pass' final")
+        if r != jl_auth.PASS:
+            return False
+        print("[auth] OK: autenticado")
+        return True
+    finally:
+        try:
+            await cliente.stop_notify(AE02)
+        except Exception:
+            pass
+
+
 async def enviar(args, fila: list[Escrita]) -> int:
     from bleak import BleakClient, BleakScanner
 
@@ -189,6 +250,9 @@ async def enviar(args, fila: list[Escrita]) -> int:
     async with BleakClient(dispositivo, timeout=25.0) as cliente:
         print(f"[conexão] conectado, MTU {cliente.mtu_size}")
         await cliente.start_notify(NOTIFY, ao_notificar)  # antes de qualquer escrita
+        if args.auth and not await autenticar(cliente):
+            print("[auth] FALHOU: não vou enviar a fila de comandos")
+            return 3
         com_resposta = args.com_resposta
         modo = "com resposta (ATT Write Request)" if com_resposta else "sem resposta (ATT Write Command, como o app oficial nas capturas)"
         print(f"[modo] escrita {modo}")
@@ -217,6 +281,7 @@ def main() -> int:
     ap.add_argument("--com-resposta", action="store_true", help="usa escrita com resposta (padrão: sem resposta, como o app oficial nas capturas)")
     ap.add_argument("--nome", default="IDL-6A9E5C")
     ap.add_argument("--cifra", choices=tuple(CIFRAS), default="aes", help="cifra da CMD: aes (padrão) ou tiro (PROTOCOLO §2)")
+    ap.add_argument("--auth", action="store_true", help="faz o handshake JieLi no 0xAE00 antes da fila (PROTOCOLO §5ter)")
     sub = ap.add_subparsers(dest="comando", required=True)
     sub.add_parser("ligar")
     sub.add_parser("desligar")

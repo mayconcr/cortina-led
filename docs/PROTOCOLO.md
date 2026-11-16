@@ -160,6 +160,25 @@ Fonte: `capturas/iphone-2026-11-16.pklg` (PacketLogger do iPhone, sessão com `5
 - **Desenho (um pixel por pacote!):** `06 'SMVEW' 01` na CMD → N pacotes de 16 B **AES** na característica **`…960B`** (handle 0x000B), cada um `05 X Y R G B` (X = coluna 1–20?, Y = linha, cor 8 bits) → `06 'SMVEW' 02` → `05 'MODE' 03`. Na captura: 75 pacotes, X de 1 a 18 e Y de 3 a 19, cor `FD 54 01`. **[A CONFIRMAR]** origem e sentido dos eixos.
 - Nenhum `TURN`, `SGLS`, `MULT`, `DOOD`, `DOOT` ou `CT` aparece: os comandos TYPE2 e os de pixel da §5 **não valem** para esta cortina.
 
+## 5ter. Autenticação JieLi no serviço `0xAE00` (necessária antes dos comandos de luz) **[A CONFIRMAR na cortina]**
+
+Sem ela, a cortina responde ao `VER` mas ignora `LEDOFF` (testado em 2026-11-16, mesmo com `TIME` e `LEDS 00`). É o "RCSP auth" da JieLi. Escritas em `0xAE01` (write-without-response), respostas por notificação em `0xAE02`, **texto puro**:
+
+| # | Direção | Pacote |
+|---|---|---|
+| 1 | app → cortina | `00` + 16 bytes aleatórios (desafio do app) |
+| 2 | cortina → app | `01` + `E1(desafio do app)` |
+| 3 | app → cortina | `02 70 61 73 73` (`02 'pass'`) |
+| 4 | cortina → app | `00` + 16 bytes aleatórios (desafio da cortina) |
+| 5 | app → cortina | `01` + `E1(desafio da cortina)` |
+| 6 | cortina → app | `02 70 61 73 73` |
+
+`E1` é a função E1 do **Bluetooth clássico** (cifra SAFER+: `Ar` + `Ar'`), devolvendo os 16 bytes, com constantes fixas tiradas de `libjl_ota_auth.so`: chave `06 77 5F 87 91 8D D4 23 00 5D F1 D8 CF 0C 14 2B` e endereço `11 22 33 33 22 11`. Implementação: `ferramentas/jl_auth.py`.
+
+Vetores reais (captura do iPhone): desafio `67c6697351ff4aec29cdbaabf2fbe346` → resposta `023a02126fa284879236e9da27ba0b8d`; desafio `3054108cae6bc3395cd78673b8ae0de7` → resposta `0bb49938575b4301cccd05340f09d073`. Ambos reproduzidos em `tests/test_jl_auth.py`.
+
+O app ainda manda no `0xAE01` os comandos RCSP `FE DC BA C0 06 00 02 00 01 EF` (antes) e `FE DC BA C0 03 …` / `FE DC BA C0 07 …` (depois, consulta de informações). **Não** implementados: só o handshake acima. Nada mais deve ser escrito no `0xAE00` (é também o canal de atualização de firmware).
+
 ## 6. Comandos TYPE1 (só se a cortina não for TYPE2)
 - Liga: `06 4C 45 44 4F 4E 00 …` ("LEDON") · Desliga: `06 4C 45 44 4F 46 46 00 …` ("LEDOFF")
 - Cor: `07 43 4F 4C 4F Gx Rx Bx 00 …`, com verde no byte 5, vermelho no 6 e azul no 7, em 5 bits (offsets 5/6/7 conferidos no `const.py` da integração HA; N = 07 = 4 letras + 3 parâmetros). Exemplo vermelho: `07 43 4F 4C 4F 00 1F 00 00 …`
