@@ -56,7 +56,7 @@ Legenda: `[ ]` pendente · `[x]` concluída · 🛑 checkpoint (pare e espere o 
 - [x] 4.1 `web/js/aes.js`: AES-128 em JS puro (cifrar e decifrar), com teste `node --test` usando os vetores do §2.
 - [x] 4.2 `web/js/protocol.js`: funções puras equivalentes às do Python (protocolo real §5bis: VER, TIME, LEDS, LEDON/LEDOFF, COLO, EFF+LIGHT+SPEED, MODE, SMVEW, pixel, quadro) + `web/js/jlauth.js` (§5ter), com testes que comparam os bytes com os gerados pelo Python (`ferramentas/vetores_js.py` → `tests/vetores.json`).
 - [x] 4.3 `web/js/ble.js`: `requestDevice({filters:[{namePrefix:'IDL-'},{namePrefix:'ISP-'}], optionalServices:[0xfff0, 0xae00]})`, preâmbulo + handshake JieLi a cada conexão, fila de escrita, notificações, reconexão e aviso amigável se o navegador não tiver Web Bluetooth ("abra no Bluefy"). Testado com uma cortina simulada em `tests/ble.test.mjs`.
-- [ ] 4.4 `web/js/grade.js`: usa o mapeamento da Fase 3 e o limite de brilho do `CLAUDE.md`.
+- [x] 4.4 `web/js/grade.js`: usa o mapeamento da Fase 3 e o limite de brilho do `CLAUDE.md` (até 40 % e orçamento de energia = 400 LEDs em branco a 30 %, já testado). Mais `fonte.js` (letras 5×7 e 3×5) e `exemplos.js` (desenhos prontos).
 - [ ] 4.5 Interface mobile-first em PT-BR, com abas:
   - **Início:** conectar, liga/desliga, cor + brilho, cores favoritas.
   - **Efeitos:** lista 1–10 com os nomes anotados na Fase 2, velocidade, paleta de até 7 cores.
