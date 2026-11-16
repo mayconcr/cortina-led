@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ferramentas.cripto import CHAVE, completar, decrypt, encrypt  # noqa: E402
+from ferramentas.cripto import CHAVE, TABELA_TIRO, completar, decrypt, encrypt, tiro_cipher, tiro_inv_cipher  # noqa: E402
 
 # (nome, texto puro, cifrado) — copiados literalmente da tabela da §2.
 VETORES = [
@@ -52,6 +52,24 @@ class TestCripto(unittest.TestCase):
         self.assertEqual(len(completar(b"")), 16)
         with self.assertRaises(ValueError):
             completar(bytes(17))
+
+    def test_tiro_tabela(self):
+        self.assertEqual(TABELA_TIRO.hex().upper(), "382C5DAABC71C6A4FD546732E653825E")
+
+    def test_tiro_ida_e_volta(self):
+        import os
+        for bloco in (bytes(16), bytes(range(16)), b"\x05TURN\x00" + bytes(10), bytes([0xFF] * 16), os.urandom(16), os.urandom(16)):
+            with self.subTest(bloco=bloco.hex()):
+                self.assertEqual(tiro_inv_cipher(tiro_cipher(bloco)), bloco)
+
+    def test_tiro_primeiro_byte_conforme_assembly(self):
+        # tiro_cipher: out[0] = (in[0] ^ 0x15) - 0x6D ; tiro_inv: in[0] = (c[0] + 0x6D) ^ 0x15
+        self.assertEqual(tiro_cipher(bytes([0x05]) + bytes(15))[0], ((0x05 ^ 0x15) - 0x6D) & 0xFF)
+        self.assertEqual(tiro_inv_cipher(bytes([0xA3]) + bytes(15))[0], ((0xA3 + 0x6D) ^ 0x15) & 0xFF)
+
+    def test_tiro_tamanho_errado(self):
+        with self.assertRaises(ValueError):
+            tiro_cipher(bytes(15))
 
     def test_completar_mais_encrypt(self):
         self.assertEqual(encrypt(completar(b"\x05TURN\x01")).hex(), "84dd5042374150897ac82f39110968a8")

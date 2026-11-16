@@ -38,6 +38,34 @@ def decrypt(bytes16: bytes) -> bytes:
     return cifra.update(dados) + cifra.finalize()
 
 
+# ---------- "cifra tiro" (segunda cifra do APK oficial, docs/PROTOCOLO.md §2) ----------
+# Reconstruída do assembly ARM64 de libtiro-aes-lib.so (tiro_cipher / tiro_inv_cipher).
+# Apesar do nome da biblioteca, NÃO é AES: é um encadeamento byte a byte com uma tabela de 16 bytes.
+TABELA_TIRO = bytes.fromhex("382C5DAABC71C6A4FD546732E653825E")
+
+
+def tiro_cipher(bytes16: bytes) -> bytes:
+    """out[0] = (in[0] ^ 0x15) - 0x6D ; out[i] = (K + in[i] - in[i-1]) ^ T[i], K = out[0] + (T[0] ^ 0xC7)."""
+    e = _conferir_bloco(bytes16)
+    saida = bytearray(16)
+    saida[0] = ((e[0] ^ 0x15) - 0x6D) & 0xFF
+    k = (saida[0] + (TABELA_TIRO[0] ^ 0xC7)) & 0xFF
+    for i in range(1, 16):
+        saida[i] = ((k + e[i] - e[i - 1]) ^ TABELA_TIRO[i]) & 0xFF
+    return bytes(saida)
+
+
+def tiro_inv_cipher(bytes16: bytes) -> bytes:
+    """Inverso exato de tiro_cipher (tiro_inv_cipher do .so)."""
+    c = _conferir_bloco(bytes16)
+    saida = bytearray(16)
+    saida[0] = ((c[0] + 0x6D) ^ 0x15) & 0xFF
+    k = ((TABELA_TIRO[0] ^ 0x38) - c[0] + 1) & 0xFF
+    for i in range(1, 16):
+        saida[i] = (k + (TABELA_TIRO[i] ^ c[i]) + saida[i - 1]) & 0xFF
+    return bytes(saida)
+
+
 def completar(dados: bytes) -> bytes:
     """Completa um comando com zeros até 16 bytes (formato geral da §3)."""
     dados = bytes(dados)

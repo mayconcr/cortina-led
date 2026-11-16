@@ -17,6 +17,7 @@ Opções:
                          opcode 0x52), que é o que o app Android usa nas capturas btsnoop. As duas foram
                          testadas na cortina em 2026-11-16 e nenhuma mudou o resultado.
     --nome NOME          nome Bluetooth (padrão IDL-6A9E5C)
+    --cifra aes|tiro     cifra aplicada na CMD (padrão aes). "tiro" é a segunda cifra do APK oficial (PROTOCOLO §2)
 
 Segurança (CLAUDE.md): só pacotes do PROTOCOLO.md, efeito 1–10 validado em protocolo.py,
 cor em 5 bits, fila única de escrita com pausa de 30 ms, NOTIFY assinado antes de escrever.
@@ -38,7 +39,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from ferramentas import protocolo as p  # noqa: E402
-from ferramentas.cripto import decrypt, encrypt  # noqa: E402
+from ferramentas.cripto import decrypt, encrypt, tiro_cipher, tiro_inv_cipher  # noqa: E402
+
+# Cifra usada na CMD: "aes" (PROTOCOLO §2, padrão) ou "tiro" (segunda cifra achada no APK, §2).
+CIFRAS = {"aes": (encrypt, decrypt), "tiro": (tiro_cipher, tiro_inv_cipher)}
+CIFRA_ATIVA = "aes"
 
 # docs/PROTOCOLO.md §1
 CMD = "d44bc439-abfd-45a2-b575-925416129600"
@@ -58,7 +63,7 @@ class Escrita:
     @property
     def fio(self) -> bytes:
         """O que vai no ar: cifrado para CMD, texto puro para DATA."""
-        return encrypt(self.puro) if self.caracteristica == CMD else self.puro
+        return CIFRAS[CIFRA_ATIVA][0](self.puro) if self.caracteristica == CMD else self.puro
 
 
 def montar(args) -> list[Escrita]:
@@ -102,7 +107,7 @@ def mostrar(fila: list[Escrita]) -> None:
         print(f"  {i}. [{alvo}] {e.rotulo}")
         print(f"       texto puro : {p.hexs(e.puro)}")
         if e.caracteristica == CMD:
-            print(f"       cifrado    : {p.hexs(e.fio)}")
+            print(f"       cifrado ({CIFRA_ATIVA}): {p.hexs(e.fio)}")
         else:
             print(f"       (DATA vai em texto puro, {len(e.puro)} bytes)")
 
@@ -128,8 +133,9 @@ async def enviar(args, fila: list[Escrita]) -> int:
         carimbo = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         print(f"[notify {carimbo}] bruto ({len(dados)} B): {p.hexs(dados)}")
         if len(dados) == 16:
-            puro = decrypt(dados)
-            print(f"[notify {carimbo}] decifrado    : {p.hexs(puro)}  |{ascii_legivel(puro)}|")
+            for nome, (_, dec) in CIFRAS.items():
+                puro = dec(dados)
+                print(f"[notify {carimbo}] decifrado ({nome}): {p.hexs(puro)}  |{ascii_legivel(puro)}|")
 
     async with BleakClient(dispositivo, timeout=25.0) as cliente:
         print(f"[conexão] conectado, MTU {cliente.mtu_size}")
@@ -161,6 +167,7 @@ def main() -> int:
     ap.add_argument("--espera", type=float, default=2.0)
     ap.add_argument("--com-resposta", action="store_true", help="usa escrita com resposta (padrão: sem resposta, como o app oficial nas capturas)")
     ap.add_argument("--nome", default="IDL-6A9E5C")
+    ap.add_argument("--cifra", choices=tuple(CIFRAS), default="aes", help="cifra da CMD: aes (padrão) ou tiro (PROTOCOLO §2)")
     sub = ap.add_subparsers(dest="comando", required=True)
     sub.add_parser("ligar")
     sub.add_parser("desligar")
@@ -175,6 +182,8 @@ def main() -> int:
     e.add_argument("--brilho", type=int, default=50, help="0–100 %% (só TYPE2)")
     sub.add_parser("versao")
     args = ap.parse_args()
+    global CIFRA_ATIVA
+    CIFRA_ATIVA = args.cifra
 
     try:
         fila = montar(args)

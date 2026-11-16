@@ -31,6 +31,15 @@ Os itens marcados **[A CONFIRMAR]** ainda não foram testados nesta cortina (20�
 - Só o que vai para **CMD** é criptografado. O que vai para **DATA** segue em texto puro. Notificações chegam criptografadas e são decifradas com a mesma chave.
 - No navegador, o WebCrypto não tem ECB. Para 1 bloco, AES-CBC com IV zero dá o mesmo resultado (use os primeiros 16 bytes), mas isso não serve para decifrar. Prefira um AES-128 em JS puro em `web/js/aes.js`, com cifrar e decifrar, testado com os vetores abaixo.
 
+### Segunda chave encontrada no APK oficial (2026-11-16) **[A CONFIRMAR]**
+O APK oficial `iDeal202511031958.apk` (site idealled.com.cn, pacote `com.winkison.ledlight`, protegido com 360 Jiagu — o Java não é legível estaticamente) traz **duas** bibliotecas AES nativas:
+- `libAES.so` (`csh.tiro.cc.aes`): chave padrão em `.data` = a chave acima (`34 52 2A …`), e uma função `keyExpansion` que aceita chave arbitrária vinda do Java.
+- `libtiro-aes-lib.so` (`com.winkison.ledlight.rgb.RGBMutuallyContract.cipher/invCipher`): apesar do nome, **não é AES**. O assembly (330 instruções, lido por completo) é um encadeamento byte a byte com uma tabela `T` de 16 bytes:
+  `T = 38 2C 5D AA BC 71 C6 A4 FD 54 67 32 E6 53 82 5E`
+  `out[0] = (in[0] ^ 0x15) − 0x6D` · `K = out[0] + (T[0] ^ 0xC7)` · `out[i] = (K + in[i] − in[i−1]) ^ T[i]` para i = 1..15 (tudo mod 256). Inverso em `ferramentas/cripto.py` (`tiro_cipher`/`tiro_inv_cipher`, com testes de ida e volta).
+  Hipótese: alguma família de produtos usa esta "cifra tiro" no lugar do AES. Vetores (gerados pelo código, a conferir na cortina): `TURN 00` → `A3 DD FE 35 22 25 64 06 5F F6 C5 90 44 F1 20 FC` · `VE 00` → `A9 D7 CA C9 14 D9 6E 0C 55 FC CF 9A 4E FB 2A F6` (ver `cortina.py --cifra tiro --so-mostrar`).
+- `libjl_ota_auth.so`: autenticação OTA da **JieLi** (杰理). Explica o diálogo no serviço `0xAE00` (`00`+16 B, `01`+16 B, `02 'pass'`) das capturas: é o handshake padrão JieLi, não parte do protocolo de luz.
+
 ### Vetores de teste (conferidos)
 
 | Comando (texto puro) | Criptografado |
