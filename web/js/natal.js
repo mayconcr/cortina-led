@@ -5,91 +5,26 @@
 // Fundo apagado (LED desligado) e cores saturadas, que ficam melhores em LED do que tons escuros.
 // Testes: tests/natal.test.mjs
 
-import { novaGrade } from "./grade.js";
 import { textoParaGrade } from "./fonte.js";
+import {
+  CORES,
+  ESTRELINHA,
+  FLOCO,
+  FLOCO_P,
+  N,
+  PINHEIRO,
+  PINHEIRO_ALTO,
+  PINHEIRO_NEVE,
+  arte,
+  carimbar,
+  disco,
+  linha,
+  novaGrade,
+  pintar,
+  ponto,
+} from "./pixelart.js";
 
-export const CORES = {
-  R: [255, 0, 0], // vermelho
-  r: [140, 0, 0], // vermelho escuro (sombra)
-  P: [255, 40, 120], // rosa
-  O: [255, 80, 0], // laranja
-  Y: [255, 180, 0], // dourado
-  y: [180, 90, 0], // caramelo / dourado escuro
-  G: [0, 200, 30], // verde
-  g: [0, 95, 20], // verde escuro
-  L: [120, 255, 30], // verde-limão
-  C: [0, 190, 255], // azul-gelo
-  B: [0, 60, 255], // azul
-  b: [0, 22, 110], // azul-marinho
-  M: [150, 0, 255], // roxo
-  W: [255, 255, 255], // branco
-  w: [90, 110, 150], // neve na sombra / fumaça
-  K: [160, 65, 10], // marrom
-  k: [80, 30, 5], // marrom escuro
-  S: [255, 140, 90], // pele
-};
-
-const N = 20;
-const cor = (letra) => {
-  if (letra === "." || letra === " ") return null;
-  const c = CORES[letra];
-  if (!c) throw new Error(`cor desconhecida na arte: ${letra}`);
-  return [...c];
-};
-
-// ---------- ferramentas de desenho ----------
-
-/** 20 linhas de 20 letras → grade. */
-function arte(linhas) {
-  if (linhas.length !== N || linhas.some((l) => l.length !== N)) {
-    throw new Error(`arte precisa ter 20 linhas de 20 letras (${linhas.map((l) => l.length).join(",")})`);
-  }
-  return linhas.map((l) => Array.from(l, cor));
-}
-
-/** Põe um pixel; com `envolver`, a coluna dá a volta (para as cenas que rolam). */
-function ponto(g, col, lin, c, envolver = false) {
-  if (envolver) col = ((col % N) + N) % N;
-  if (col < 0 || col >= N || lin < 0 || lin >= N || !c) return;
-  g[lin][col] = Array.isArray(c) ? [...c] : cor(c);
-}
-
-/** Carimba um desenho pequeno (lista de strings) com o canto superior esquerdo em (col, lin). */
-function carimbar(g, sprite, col, lin, envolver = false) {
-  sprite.forEach((fileira, dy) => {
-    Array.from(fileira).forEach((letra, dx) => {
-      if (letra !== "." && letra !== " ") ponto(g, col + dx, lin + dy, letra, envolver);
-    });
-  });
-}
-
-/** Espelha um sprite na horizontal. */
-const espelhar = (sprite) => sprite.map((l) => Array.from(l).reverse().join(""));
-
-function linha(g, c0, l0, c1, l1, c, envolver = false) {
-  const passos = Math.max(Math.abs(c1 - c0), Math.abs(l1 - l0));
-  for (let i = 0; i <= passos; i++) {
-    const t = passos ? i / passos : 0;
-    ponto(g, Math.round(c0 + (c1 - c0) * t), Math.round(l0 + (l1 - l0) * t), c, envolver);
-  }
-}
-
-/** Preenche onde f(col, lin) devolve uma letra de cor. */
-function pintar(g, f) {
-  for (let lin = 0; lin < N; lin++) for (let col = 0; col < N; col++) ponto(g, col, lin, f(col, lin));
-  return g;
-}
-
-const disco = (g, cx, cy, raio, c) => pintar(g, (x, y) => (Math.hypot(x - cx, y - cy) <= raio ? c : null));
-
-// ---------- desenhos pequenos reaproveitados ----------
-
-const PINHEIRO = ["..G..", ".GGG.", "..G..", ".GGG.", "GGGGG", "..K.."];
-const PINHEIRO_NEVE = ["...W...", "..WGW..", "..GGG..", ".WGGGW.", ".GGGGG.", "WGGGGGW", "GGGGGGG", "...K..."];
-const PINHEIRO_ALTO = ["...Y...", "...G...", "..GGG..", "...G...", "..GGG..", ".GGGGG.", "..GGG..", ".GGGGG.", "GGGGGGG", "...K..."];
-const FLOCO = ["..W..", "W.W.W", ".WWW.", "W.W.W", "..W.."];
-const FLOCO_P = [".C.", "CWC", ".C."];
-const ESTRELINHA = [".Y.", "YWY", ".Y."];
+export { CORES };
 
 // ============================================================
 //                     GALERIA — 20 desenhos
