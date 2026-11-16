@@ -9,11 +9,11 @@ Legenda: `[ ]` pendente · `[x]` concluída · 🛑 checkpoint (pare e espere o 
 ---
 
 ## Fase 0: Preparação (não toca na cortina)
-- [ ] 0.1 `git init`, criar a estrutura de pastas do `CLAUDE.md` e um `.gitignore` (`.venv/`, `__pycache__/`, `referencias/`).
-- [ ] 0.2 Clonar as referências em `referencias/`: `8none1/idealLED` e `koying/ha_ideal_led_ble`. Só para leitura.
-- [ ] 0.3 Criar o `.venv` e instalar `ferramentas/requirements.txt` (`bleak`, `cryptography`).
-- [ ] 0.4 `ferramentas/cripto.py` com `encrypt(bytes16)`/`decrypt(bytes16)` e o teste `tests/test_cripto.py` com **todos** os vetores do `PROTOCOLO.md` §2.
-- [ ] 0.5 `ferramentas/scan.py`: procura dispositivos `IDL-`/`ISP-` por 10 s e mostra nome, endereço e RSSI.
+- [x] 0.1 `git init`, criar a estrutura de pastas do `CLAUDE.md` e um `.gitignore` (`.venv/`, `__pycache__/`, `referencias/`).
+- [x] 0.2 Clonar as referências em `referencias/`: `8none1/idealLED` e `koying/ha_ideal_led_ble`. Só para leitura.
+- [x] 0.3 Criar o `.venv` e instalar `ferramentas/requirements.txt` (`bleak`, `cryptography`).
+- [x] 0.4 `ferramentas/cripto.py` com `encrypt(bytes16)`/`decrypt(bytes16)` e o teste `tests/test_cripto.py` com **todos** os vetores do `PROTOCOLO.md` §2.
+- [x] 0.5 `ferramentas/scan.py`: procura dispositivos `IDL-`/`ISP-` por 10 s e mostra nome, endereço e RSSI.
   - No macOS, o terminal pede permissão de Bluetooth na primeira vez, e o `bleak` mostra um UUID no lugar do MAC.
   - Se o computador não tiver Bluetooth LE, avise o usuário. A alternativa é pular para a Fase 4 e testar no Chrome desktop ou no Bluefy.
 

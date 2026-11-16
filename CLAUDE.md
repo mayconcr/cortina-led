@@ -51,6 +51,8 @@ cortina-led/
 
 ## Comandos
 - `source .venv/bin/activate` (Windows: `.venv\Scripts\activate`)
+- **macOS:** scripts que usam Bluetooth (`scan.py`, `sonda.py`, `cortina.py`) **não rodam pela ferramenta Bash do Claude Code** (o TCC mata o processo). Rode-os no painel Terminal do app Claude ou num Terminal comum e leia a saída de lá. Testes e cripto rodam normalmente pelo Bash.
+- `python ferramentas/scan.py`: procura a cortina por 10 s, somente leitura (Fase 0)
 - `python ferramentas/sonda.py`: diagnóstico somente leitura (Fase 1)
 - `python ferramentas/cortina.py --help`: comandos básicos (Fase 2+)
 - `node --test tests/`: testes do protocolo em JS
