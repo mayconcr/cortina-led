@@ -13,6 +13,8 @@ Opções:
     --tipo TYPE1|TYPE2   conjunto de comandos (padrão TYPE1, ver docs/DESCOBERTAS.md)
     --so-mostrar         NÃO conecta: só imprime os pacotes (texto puro e cifrado)
     --espera S           segundos esperando notificações depois do último pacote (padrão 2)
+    --sem-resposta       escrita sem resposta. O padrão é COM resposta (ATT Write Request, opcode 0x12),
+                         que é o que a captura do app Android e o script de referência usam.
     --nome NOME          nome Bluetooth (padrão IDL-6A9E5C)
 
 Segurança (CLAUDE.md): só pacotes do PROTOCOLO.md, efeito 1–10 validado em protocolo.py,
@@ -131,11 +133,15 @@ async def enviar(args, fila: list[Escrita]) -> int:
     async with BleakClient(dispositivo, timeout=25.0) as cliente:
         print(f"[conexão] conectado, MTU {cliente.mtu_size}")
         await cliente.start_notify(NOTIFY, ao_notificar)  # antes de qualquer escrita
+        com_resposta = not args.sem_resposta
+        modo = "com resposta (ATT Write Request, como o app e o script de referência)" if com_resposta else "sem resposta (ATT Write Command)"
+        print(f"[modo] escrita {modo}")
         for i, e in enumerate(fila, 1):  # fila única, uma escrita por vez
             alvo = "CMD " if e.caracteristica == CMD else "DATA"
             t0 = time.monotonic()
-            await cliente.write_gatt_char(e.caracteristica, e.fio, response=False)
-            print(f"[envio {i}/{len(fila)}] [{alvo}] {e.rotulo}  ({(time.monotonic() - t0) * 1000:.0f} ms)")
+            await cliente.write_gatt_char(e.caracteristica, e.fio, response=com_resposta)
+            ack = "ACK da cortina" if com_resposta else "sem ack"
+            print(f"[envio {i}/{len(fila)}] [{alvo}] {e.rotulo}  ({(time.monotonic() - t0) * 1000:.0f} ms, {ack})")
             await asyncio.sleep(PAUSA_ENTRE_ESCRITAS)
         print(f"[espera] {args.espera:.0f} s por notificações...")
         await asyncio.sleep(args.espera)
@@ -152,6 +158,7 @@ def main() -> int:
     ap.add_argument("--tipo", choices=("TYPE1", "TYPE2"), default="TYPE1")
     ap.add_argument("--so-mostrar", action="store_true", help="só imprime os pacotes, não conecta")
     ap.add_argument("--espera", type=float, default=2.0)
+    ap.add_argument("--sem-resposta", action="store_true", help="usa escrita sem resposta (padrão: com resposta, como o app oficial)")
     ap.add_argument("--nome", default="IDL-6A9E5C")
     sub = ap.add_subparsers(dest="comando", required=True)
     sub.add_parser("ligar")
