@@ -54,7 +54,7 @@ Legenda: `[ ]` pendente · `[x]` concluída · 🛑 checkpoint (pare e espere o 
 ## Fase 4: App web para iPhone (Bluefy)
 > ⚠️ **Ajustes pelo protocolo real (2026-11-16):** `protocol.js` deve espelhar `ferramentas/protocolo.py` §5bis (VER, TIME, LEDS, LEDON/LEDOFF, COLO, EFF+LIGHT+SPEED, IMAG, MODE, SMVEW, pixel) e ganhar um `jlauth.js` (E1/SAFER+, espelho de `ferramentas/jl_auth.py`, com os vetores da captura). `ble.js` precisa de `optionalServices: [0xfff0, 0xae00]` e fazer preâmbulo + handshake a cada conexão. Paleta de efeitos e DOOT/DOOD não existem; "enviar desenho" leva até ~13 s (mostrar progresso). Animação quadro a quadro está fora; texto/imagem viram desenho parado ou rolagem nativa (`MODE 03`).
 - [x] 4.1 `web/js/aes.js`: AES-128 em JS puro (cifrar e decifrar), com teste `node --test` usando os vetores do §2.
-- [ ] 4.2 `web/js/protocol.js`: funções puras equivalentes às do Python (turn, sgls, mult + paleta, dood, doot com run-length), com testes que comparam os bytes com os gerados pelo Python.
+- [x] 4.2 `web/js/protocol.js`: funções puras equivalentes às do Python (protocolo real §5bis: VER, TIME, LEDS, LEDON/LEDOFF, COLO, EFF+LIGHT+SPEED, MODE, SMVEW, pixel, quadro) + `web/js/jlauth.js` (§5ter), com testes que comparam os bytes com os gerados pelo Python (`ferramentas/vetores_js.py` → `tests/vetores.json`).
 - [ ] 4.3 `web/js/ble.js`: `requestDevice({filters:[{namePrefix:'IDL-'},{namePrefix:'ISP-'}], optionalServices:[0xfff0]})`, fila de escrita, notificações, reconexão e aviso amigável se o navegador não tiver Web Bluetooth ("abra no Bluefy").
 - [ ] 4.4 `web/js/grade.js`: usa o mapeamento da Fase 3 e o limite de brilho do `CLAUDE.md`.
 - [ ] 4.5 Interface mobile-first em PT-BR, com abas:
