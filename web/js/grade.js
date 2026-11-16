@@ -125,3 +125,15 @@ export function deRGBA(rgba, lado, { limiar = 0 } = {}) {
   }
   return grade;
 }
+
+/** Cores mais vivas para foto em LED: afasta cada canal da média (fator > 1 satura). */
+export function realcar(grade, fator = 1.5) {
+  return grade.map((linha) =>
+    linha.map((c) => {
+      if (!acesa(c)) return null;
+      const media = (c[0] + c[1] + c[2]) / 3;
+      const nova = c.map((v) => Math.max(0, Math.min(255, Math.round(media + (v - media) * fator))));
+      return acesa(nova) ? nova : null;
+    }),
+  );
+}

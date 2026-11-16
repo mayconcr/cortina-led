@@ -4,3 +4,4 @@ __pycache__/
 referencias/
 .DS_Store
 capturas/
+.claude/launch.json

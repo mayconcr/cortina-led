@@ -108,3 +108,13 @@ test("exemplos cabem na grade e respeitam o orçamento", () => {
     assert.ok(G.contarAcesos(g) > 0, e.nome);
   }
 });
+
+test("cores mais vivas afastam os canais da média, sem passar de 0–255", () => {
+  const g = G.novaGrade();
+  g[0][0] = [200, 100, 100];
+  g[0][1] = [10, 10, 10];
+  const r = G.realcar(g, 1.5);
+  assert.deepEqual(r[0][0], [233, 83, 83]);
+  assert.deepEqual(r[0][1], [10, 10, 10]);
+  assert.equal(r[0][2], null);
+});
