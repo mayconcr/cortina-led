@@ -21,11 +21,11 @@ Legenda: `[ ]` pendente · `[x]` concluída · 🛑 checkpoint (pare e espere o 
 🛑 Mostre o resultado do scan ao usuário.
 
 ## Fase 1: Sonda somente leitura (nenhuma escrita)
-- [ ] 1.1 `ferramentas/sonda.py`: conecta e lista serviços e características, com propriedades (write, write-without-response, notify) e MTU.
-- [ ] 1.2 Ler os descritores `0x2901` de todas as características e mostrar a string de firmware.
-- [ ] 1.3 Assinar NOTIFY, decifrar e logar o que chegar por 15 s (em hex e ASCII).
-- [ ] 1.4 Determinar TYPE1/TYPE2 pela regra do `PROTOCOLO.md` §4.
-- [ ] 1.5 Registrar tudo em `DESCOBERTAS.md`.
+- [x] 1.1 `ferramentas/sonda.py`: conecta e lista serviços e características, com propriedades (write, write-without-response, notify) e MTU.
+- [x] 1.2 Ler os descritores `0x2901` de todas as características e mostrar a string de firmware.
+- [x] 1.3 Assinar NOTIFY, decifrar e logar o que chegar por 15 s (em hex e ASCII).
+- [x] 1.4 Determinar TYPE1/TYPE2 pela regra do `PROTOCOLO.md` §4.
+- [x] 1.5 Registrar tudo em `DESCOBERTAS.md`.
 
 **Aceite:** UUIDs conferem com o `PROTOCOLO.md` §1, firmware lido (ou falha registrada), tipo definido.
 🛑 Explique ao usuário o que foi encontrado, ainda sem enviar comando.
