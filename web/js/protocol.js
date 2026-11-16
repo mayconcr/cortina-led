@@ -7,7 +7,8 @@
 // Regras de segurança do CLAUDE.md aplicadas AQUI, no nível mais baixo, para nenhum botão
 // da interface conseguir passar por cima delas:
 //   - efeito só de 1 a 10 (regra 3);
-//   - brilho de desenho e de efeito até 40 % (regra 5);
+//   - brilho de desenho e de cor sólida até 40 % (regra 5);
+//   - brilho dos efeitos (LIGHT) até 100 %: liberado pelo usuário em 2026-11-16, testado aos poucos;
 //   - cor sólida: nenhum canal acima de 40 % e nunca branco acima de 30 % (o que já foi testado);
 //   - não existem LAMPN nem CT (regra 4); TIME só no formato do app (autorizado pelo usuário).
 // Testes: tests/protocol.test.mjs (compara com os bytes gerados pelo Python).
@@ -25,6 +26,7 @@ export const VELOCIDADE_PADRAO = 8;
 export const VELOCIDADE_MIN = 1;
 export const VELOCIDADE_MAX = 16;
 export const BRILHO_EFEITO_MIN = 5;
+export const BRILHO_EFEITO_MAX = 100; // LIGHT: o app oficial vai até 100 % (usuário liberou em 2026-11-16)
 
 // Cauda fixa que o app iOS manda depois da hora no TIME (captura de 2026-11-16).
 export const CAUDA_TIME_APP = Object.freeze([0xa5, 0x5a, 0xa5, 0x00, 0x03, 0x02, 0x06]);
@@ -126,9 +128,9 @@ export function effApp(n) {
   return MODELOS_EFF.map((modelo) => completar(modelo.map((b) => (b === -1 ? n : b))));
 }
 
-/** 06 'LIGHT' BR — brilho dos efeitos em %, de 5 a 40. */
+/** 06 'LIGHT' BR — brilho dos efeitos em %, de 5 a 100 (o app oficial manda 32 = 50 %). */
 export function lightBrilho(brilho = BRILHO_MAX) {
-  return completar([0x06, ...ascii("LIGHT"), inteiro(brilho, "brilho do efeito", BRILHO_EFEITO_MIN, BRILHO_MAX)]);
+  return completar([0x06, ...ascii("LIGHT"), inteiro(brilho, "brilho do efeito", BRILHO_EFEITO_MIN, BRILHO_EFEITO_MAX)]);
 }
 
 /** 06 'SPEED' SP — velocidade dos efeitos (o app manda 08). */

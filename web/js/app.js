@@ -6,7 +6,7 @@ import { EXEMPLOS } from "./exemplos.js";
 import { capacidade, textoParaGrade } from "./fonte.js";
 import * as G from "./grade.js";
 import { gravar, ler } from "./memoria.js";
-import { BRILHO_EFEITO_MIN, BRILHO_MAX, EFEITO_MAX, EFEITO_MIN, VELOCIDADE_MAX, VELOCIDADE_MIN, VELOCIDADE_PADRAO } from "./protocol.js";
+import { BRILHO_EFEITO_MAX, BRILHO_EFEITO_MIN, BRILHO_MAX, EFEITO_MAX, EFEITO_MIN, VELOCIDADE_PADRAO } from "./protocol.js";
 import { desenharGrade } from "./tela.js";
 
 const $ = (seletor) => document.querySelector(seletor);
@@ -37,8 +37,9 @@ const estado = {
   editandoFavoritas: false,
   nomesEfeitos: ler("nomesEfeitos", {}),
   efeitoAtivo: null,
-  brilhoEfeito: entre(ler("brilhoEfeito", BRILHO_MAX), BRILHO_EFEITO_MIN, BRILHO_MAX, BRILHO_MAX),
-  velocidade: entre(ler("velocidade", VELOCIDADE_PADRAO), VELOCIDADE_MIN, VELOCIDADE_MAX, VELOCIDADE_PADRAO),
+  brilhoEfeito: entre(ler("brilhoEfeito", BRILHO_MAX), BRILHO_EFEITO_MIN, BRILHO_EFEITO_MAX, BRILHO_MAX),
+  // SPEED 1–16 não mudou nada na cortina (2026-11-16): fica fixo no valor que o app oficial manda.
+  velocidade: VELOCIDADE_PADRAO,
   desenho: carregarDesenho(),
   desfazer: [],
   ferramenta: "pincel",
@@ -395,7 +396,6 @@ function controleNumero(input, rotulo, chave, formato) {
 }
 
 controleNumero($("#brilho-efeito"), $("#brilho-efeito-valor"), "brilhoEfeito", (v) => `${v}%`);
-controleNumero($("#velocidade"), $("#velocidade-valor"), "velocidade", (v) => String(v));
 
 // ---------- controles comuns de desenho (brilho, rolar, resumo, envio) ----------
 

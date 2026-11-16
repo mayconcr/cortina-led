@@ -50,13 +50,15 @@ test("regra 3: efeito só de 1 a 10", () => {
   for (let n = 1; n <= 10; n++) assert.equal(P.effApp(n)[0][4], n);
 });
 
-test("regra 5: brilho de desenho e de efeito até 40 %", () => {
+test("regra 5: brilho de desenho até 40 %; efeitos (LIGHT) de 5 a 100 %, liberado pelo usuário", () => {
   assert.throws(() => P.pixelXY(0, 0, 255, 0, 0, 41));
   assert.throws(() => P.pixel(0, 0, 255, 0, 0, 100));
   assert.throws(() => P.quadro(Array.from({ length: 20 }, () => Array(20).fill([255, 0, 0])), 41));
-  assert.throws(() => P.lightBrilho(41));
-  assert.throws(() => P.lightBrilho(50));
+  assert.throws(() => P.lightBrilho(101));
   assert.throws(() => P.lightBrilho(4));
+  assert.throws(() => P.lightBrilho(0));
+  assert.equal(P.lightBrilho(100)[6], 0x64);
+  assert.equal(P.lightBrilho(50)[6], 0x32); // o valor que o app oficial manda
   assert.equal(Math.max(...P.pixelXY(0, 0, 255, 255, 255, 40).slice(3, 6)), 102);
 });
 
