@@ -6,7 +6,8 @@ import { EXEMPLOS } from "./exemplos.js";
 import { capacidade, textoParaGrade } from "./fonte.js";
 import * as G from "./grade.js";
 import { gravar, ler } from "./memoria.js";
-import { ANIMACOES_NATAL, DESENHOS_NATAL } from "./natal.js";
+import { COLECOES_ANIMACOES } from "./colecoes.js";
+import { DESENHOS_NATAL } from "./natal.js";
 import {
   BRILHO_EFEITO_MAX,
   BRILHO_EFEITO_MIN,
@@ -61,6 +62,7 @@ const estado = {
   rolagemNaCortina: false,
   galeria: ler("galeria", []),
   filtroGaleria: ler("filtroGaleria", "natal"),
+  filtroAnimacoes: ler("filtroAnimacoes", "natal"),
   modoCriar: ler("modoCriar", "desenhar"),
   texto: { texto: "NOEL", fonte: "grande", alinhamento: "centro", cor: [255, 0, 0], ...ler("texto", {}) },
   imagem: { fonte: null, zoom: 1, x: 0, y: 0, limiar: 30, vivas: true, grade: null },
@@ -536,7 +538,7 @@ async function enviarGrade(grade, { rotulo = "desenho", rolar = false, velocidad
 //                        Animações
 // ============================================================
 
-let animacoesProntas = false;
+const animacoesProntas = new Set();
 
 function cardLed(nome, meta, grade, { animado = false, aoTocar }) {
   const canvas = el("canvas", { class: "painel-led", "aria-hidden": "true" });
@@ -551,17 +553,38 @@ function cardLed(nome, meta, grade, { animado = false, aoTocar }) {
   return card;
 }
 
+/** Cada coleção vira uma lista própria; só a escolhida fica visível (e só ela anima). */
 function renderAnimacoes() {
-  if (animacoesProntas) return;
-  animacoesProntas = true;
-  $("#lista-animacoes").replaceChildren(
-    ...ANIMACOES_NATAL.map((item) => {
+  const filtro = COLECOES_ANIMACOES[estado.filtroAnimacoes] ? estado.filtroAnimacoes : "natal";
+  for (const lista of $$("#lista-animacoes > .grade-cards")) lista.hidden = lista.dataset.colecao !== filtro;
+  if (animacoesProntas.has(filtro)) return;
+  animacoesProntas.add(filtro);
+  const lista = el("div", { class: "grade-cards", "data-colecao": filtro });
+  lista.append(
+    ...COLECOES_ANIMACOES[filtro].itens.map((item) => {
       const grade = item.criar();
       const meta = `Envio de ${Math.max(1, Math.round(G.tempoEstimado(grade)))} s`;
       return cardLed(item.nome, meta, grade, { animado: true, aoTocar: () => abrirAnimacao(item, grade) });
     }),
   );
+  $("#lista-animacoes").append(lista);
 }
+
+const renderFiltroAnimacoes = segmentado(
+  $("#animacoes-filtro"),
+  () => estado.filtroAnimacoes,
+  (v) => {
+    estado.filtroAnimacoes = v;
+    gravar("filtroAnimacoes", v);
+    renderAnimacoes();
+    window.scrollTo(0, 0);
+  },
+);
+for (const b of $$("#animacoes-filtro button")) {
+  const colecao = COLECOES_ANIMACOES[b.dataset.valor];
+  if (colecao) b.textContent = `${colecao.nome} · ${colecao.itens.length}`;
+}
+renderFiltroAnimacoes();
 
 function abrirAnimacao(item, grade) {
   const canvas = el("canvas", { class: "painel-led", "aria-label": `Prévia: ${item.nome}` });
@@ -570,14 +593,15 @@ function abrirAnimacao(item, grade) {
   const brilho = controleBrilhoDesenho();
   brilho.querySelector("input").addEventListener("input", () => (textoResumo.textContent = resumo(grade)));
   const velocidade = slider({
-    rotulo: "Velocidade da rolagem (em teste)",
+    rotulo: "Velocidade (vale no próximo envio · em teste)",
     min: VELOCIDADE_MIN,
     max: VELOCIDADE_MAX,
     valor: estado.velocidadeRolagem,
     aoMudar: (v) => {
+      // Mandar SPEED sozinho com a rolagem andando não mudou nada na cortina (2026-11-16):
+      // a velocidade vai junto com o próximo envio (SMVEW 02 → MODE 03 → SPEED), como o app oficial.
       estado.velocidadeRolagem = v;
       gravar("velocidadeRolagem", v);
-      if (estado.rolagemNaCortina && cortina.conectada) executar(() => cortina.velocidade(v));
     },
   });
   abrirFolha(
