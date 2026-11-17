@@ -179,6 +179,32 @@ Vetores reais (captura do iPhone): desafio `67c6697351ff4aec29cdbaabf2fbe346` �
 
 O app ainda manda no `0xAE01` os comandos RCSP `FE DC BA C0 06 00 02 00 01 EF` (antes) e `FE DC BA C0 03 …` / `FE DC BA C0 07 …` (depois, consulta de informações). **Não** implementados: só o handshake acima. Nada mais deve ser escrito no `0xAE00` (é também o canal de atualização de firmware).
 
+## 5quater. Captura de 2026-11-17: comandos novos do app oficial **[capturados, ainda NÃO enviados por nós]**
+
+Fonte: `capturas/iphone-2026-11-17-latest.pklg` (fora do git), decifrada com `ferramentas/decifrar_captura.py`.
+Cada item abaixo precisa de confirmação do usuário antes do primeiro envio (CLAUDE.md, regra 2).
+
+| Comando (texto puro, AES na CMD) | O que parece ser |
+|---|---|
+| `05 'ANIM' NN` (vistos: `31`, `0E`, `1E`), seguido só de `LIGHT` | **Animação guardada no controlador**: a cortina toca os quadros sozinha (ex.: trenó com a rena se mexendo). NN = número da animação. Lista completa desconhecida: **não varrer**; descobrir por captura, escolhendo cada animação no app oficial. |
+| `05 'IMAG' 1A` + `MODE` + `LIGHT` + `SPEED` | Animação nativa "árvore de Natal" (já vista em 2026-11-16). |
+| `05 'MODE' MM` (vistos: `01` a `06`) | Modo de movimento. `03` = rolar para a esquerda (confirmado). O usuário passou por 05, 06, 01, 02, 03, 04 com a árvore (`IMAG 1A`) na tela. Os outros, a descobrir um por vez. |
+| `06 'FC' FF C1 C2 C3` (vistos: `01 FF FF FE`, `00 FF FF FE`) | Provável cor do texto/figura (FF = ligado/desligado?, depois a cor). |
+| `06 'BC' FF C1 C2 C3` (vistos: `01 7F 7F 7F`, `01 7F 7D 00`, `01 7F 00 32`, `00 7F 00 32`) | Provável cor de fundo. |
+| `06 'LIGHT' BR` com BR de `29` a `64` | Brilho de 41 a 100 % (o app oficial vai até 100 %). |
+| `07 'DATS' 00 00 F0` → NOTIFY `07 'DATSOK'` | Início de transferência de dados; `00 00 F0` = 240 bytes no total. |
+| DATA (`…960A`, handle 0x0009, **texto puro**, escrita com resposta): `[n+1] [índice] [n bytes, n ≤ 96]` | Pedaços da transferência (vistos 3: 96 + 96 + 48 bytes). A cortina responde cada um com NOTIFY `04 'REOK' 'OK'`. |
+| `05 'DATCP'` → NOTIFY `07 'DATCPOK'` | Fim da transferência. Depois o app manda `FC 00 …`, `BC 00 …`, `MODE 04`, `LIGHT`, `SPEED`. |
+
+**Conteúdo dos 240 bytes (texto/emojis que rolam):** 48 colunas × 2 bytes (16 bits por coluna, big-endian) = imagem
+de 16 linhas × 48 colunas, **mais larga que a cortina**; depois 48 cores de 3 bytes, uma por coluna (todas `FE 55 01`,
+ordem dos canais a confirmar). Lendo bit 15 = linha de cima, a imagem é: xícara com vapor, carinha, coração, carinha
+(sequência de emojis mandada pelo usuário). É o caminho para **texto longo rolando** (Fase 5.2).
+
+Também na conexão: o app manda comandos RCSP da JieLi (`FE DC BA C0 …`) no `0xAE01` antes do `VER` e depois do
+`LEDS`. Nós **não** mandamos (no `0xAE00` só o handshake). O "aleatório" do handshake do app foi o mesmo dos dois dias
+(`67 C6 69 73 …`): o app usa sempre o mesmo. O `TIME` veio com dia da semana `02` numa terça (1 = segunda, confirmado).
+
 ## 6. Comandos TYPE1 (só se a cortina não for TYPE2)
 - Liga: `06 4C 45 44 4F 4E 00 …` ("LEDON") · Desliga: `06 4C 45 44 4F 46 46 00 …` ("LEDOFF")
 - Cor: `07 43 4F 4C 4F Gx Rx Bx 00 …`, com verde no byte 5, vermelho no 6 e azul no 7, em 5 bits (offsets 5/6/7 conferidos no `const.py` da integração HA; N = 07 = 4 letras + 3 parâmetros). Exemplo vermelho: `07 43 4F 4C 4F 00 1F 00 00 …`
