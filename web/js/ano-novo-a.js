@@ -76,30 +76,39 @@ function cenaCrisantemo() {
   return g;
 }
 
-// 2. Palmeira: braços dourados grossos que caem, e o rastro do foguete como tronco.
+// 2. Palmeira: rastro do foguete como tronco; folhas douradas que abrem em leque e caem,
+// com faíscas pingando das pontas (é o que diferencia a palmeira de um guarda-chuva).
 function cenaPalmeira() {
   const g = novaGrade();
-  const copa = simetrica([
-    "..........",
-    "..........",
-    "....YYYY..",
-    "...YyyyyY.",
-    "..Yy....yV",
-    "..V....YYW",
-    ".W...YYy..",
-    "....Yyy...",
-    ".O.Yy.....",
-    "...V......",
-    "..W.......",
-    "..........",
-    "..O.......",
-  ]);
-  C(g, copa, 0, 1);
-  for (let y = 7; y <= 19; y++) {
-    const x = 9.5 - 1.8 * ((y - 7) / 12) ** 2;
-    const c = y <= 9 ? "V" : y <= 12 ? "O" : y <= 15 ? "y" : y % 2 ? "y" : null;
-    P(g, x, y, c);
+  const folhas = [
+    [[9, 6], [7, 3], [4, 2], [2, 3], [1, 6]],
+    [[9, 6], [7, 6], [5, 8], [4, 11]],
+    [[9, 6], [8, 2], [8, 0]],
+  ];
+  const cores = ["V", "Y", "Y", "O", "y"];
+  for (const lado of [0, 1]) {
+    for (const caminho of folhas) {
+      const pts = caminho.map(([x, y]) => (lado ? [19 - x, y] : [x, y]));
+      for (let i = 1; i < pts.length; i++) {
+        const [x0, y0] = pts[i - 1];
+        const [x1, y1] = pts[i];
+        const passos = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+        for (let s = 0; s <= passos; s++) P(g, x0 + ((x1 - x0) * s) / passos, y0 + ((y1 - y0) * s) / passos, cores[Math.min(i, cores.length - 1)]);
+      }
+      const [xf, yf] = pts.at(-1);
+      if (yf > 4) {
+        P(g, xf, yf + 2, "O");
+        P(g, xf, yf + 4, "y");
+      }
+    }
   }
+  C(g, ["WW", "VV"], 9, 5);
+  for (let y = 8; y <= 19; y++) {
+    const c = y <= 11 ? "O" : y <= 15 ? "y" : y % 2 ? "y" : null;
+    P(g, y < 14 ? 10 : 9, y, c);
+  }
+  brilho(g, 15, 15, "W", "Y");
+  brilho(g, 3, 16, "W", "V");
   return g;
 }
 
