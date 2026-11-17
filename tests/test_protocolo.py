@@ -166,6 +166,18 @@ class TestGrade(unittest.TestCase):
             p.quadro([[None] * 20 for _ in range(19)])
 
 
+class TestAnim(unittest.TestCase):
+    def test_bytes_da_captura(self):
+        self.assertEqual(p.anim(0x1E).hex(" "), "05 41 4e 49 4d 1e 00 00 00 00 00 00 00 00 00 00")
+        self.assertEqual(p.anim(0x31)[5], 0x31)
+        self.assertEqual(p.anim(0x0E)[5], 0x0E)
+
+    def test_recusa_numeros_nao_vistos(self):
+        for n in (0, 1, 0x0F, 0x1A, 0x32, 255, -1):
+            with self.assertRaises(ValueError):
+                p.anim(n)
+
+
 class TestSeguranca(unittest.TestCase):
     def test_efeito_fora_de_1_a_10_da_erro(self):
         for n in (0, 11, 12, 255, -1):

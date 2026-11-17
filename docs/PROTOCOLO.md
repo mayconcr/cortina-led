@@ -186,7 +186,7 @@ Cada item abaixo precisa de confirmação do usuário antes do primeiro envio (C
 
 | Comando (texto puro, AES na CMD) | O que parece ser |
 |---|---|
-| `05 'ANIM' NN` (vistos: `31`, `0E`, `1E`), seguido só de `LIGHT` | **Animação guardada no controlador**: a cortina toca os quadros sozinha (ex.: trenó com a rena se mexendo). NN = número da animação. Lista completa desconhecida: **não varrer**; descobrir por captura, escolhendo cada animação no app oficial. |
+| `05 'ANIM' NN` (vistos: `31`, `0E`, `1E`), seguido só de `LIGHT` | **Animação guardada no controlador**: a cortina toca os quadros sozinha. **Testado em 2026-11-17:** `31` = desenho aleatório, `0E` = trenó do Papai Noel com a rena, `1E` = cubo girando. NN = número da animação. Lista completa desconhecida: **não varrer**; descobrir por captura, escolhendo cada animação no app oficial. |
 | `05 'IMAG' 1A` + `MODE` + `LIGHT` + `SPEED` | Animação nativa "árvore de Natal" (já vista em 2026-11-16). |
 | `05 'MODE' MM` (vistos: `01` a `06`) | Modo de movimento. `03` = rolar para a esquerda (confirmado). O usuário passou por 05, 06, 01, 02, 03, 04 com a árvore (`IMAG 1A`) na tela. Os outros, a descobrir um por vez. |
 | `06 'FC' FF C1 C2 C3` (vistos: `01 FF FF FE`, `00 FF FF FE`) | Provável cor do texto/figura (FF = ligado/desligado?, depois a cor). |

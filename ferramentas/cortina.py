@@ -186,6 +186,10 @@ def passo(token: str) -> list[Escrita]:
         fila.append(Escrita(CMD, p.light_brilho(args[1] if len(args) > 1 else 50), "LIGHT (brilho)"))
         fila.append(Escrita(CMD, p.speed(args[2] if len(args) > 2 else 8), "SPEED"))
         return fila
+    if nome == "anim":
+        brilho = args[1] if len(args) > 1 else 40
+        return [Escrita(CMD, p.anim(args[0]), f"ANIM {args[0]:02X} (animação guardada na cortina)"),
+                Escrita(CMD, p.light_brilho(brilho), f"LIGHT {brilho}%")]
     if nome == "imag":
         return [Escrita(CMD, p.imag(args[0]), f"IMAG {args[0]}"), Escrita(CMD, p.mode(3), "MODE 03"),
                 Escrita(CMD, p.light_brilho(args[1] if len(args) > 1 else 50), "LIGHT (brilho)"), Escrita(CMD, p.speed(8), "SPEED")]

@@ -154,6 +154,18 @@ def imag(indice: int) -> bytes:
     return completar(b"\x05IMAG" + bytes([indice]))
 
 
+# Animações guardadas no controlador (PROTOCOLO §5quater). Só os números vistos na captura do app oficial
+# de 2026-11-17; outros números exigem nova captura (CLAUDE.md, regra 1: nada de varrer valores).
+ANIM_CONHECIDAS = (0x31, 0x0E, 0x1E)
+
+
+def anim(numero: int) -> bytes:
+    """05 'ANIM' NN — a cortina toca sozinha uma animação guardada nela. O app manda LIGHT logo depois."""
+    if numero not in ANIM_CONHECIDAS:
+        raise ValueError(f"ANIM {numero!r} não foi visto na captura do app; só {[hex(n) for n in ANIM_CONHECIDAS]}")
+    return completar(b"\x05ANIM" + bytes([numero]))
+
+
 def mode(m: int = 3) -> bytes:
     """05 'MODE' MM — o app manda MODE 03 depois de IMAG e depois do desenho."""
     _canal(m, "modo")
