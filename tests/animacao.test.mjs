@@ -76,11 +76,3 @@ test("criar() devolve quadros novos a cada chamada", () => {
   assert.notEqual(a.criar()[0], a.criar()[0]);
 });
 
-test("tempo na cortina (quadro inteiro) e amostra de quadros", () => {
-  const q = G.novaGrade();
-  for (let c = 0; c < 10; c++) q[0][c] = [255, 0, 0];
-  assert.equal(A.segundosPorQuadroNaCortina([q], 32), (10 * 32 + 100) / 1000);
-  const muitos = Array.from({ length: 48 }, () => G.novaGrade());
-  assert.equal(A.quadrosParaCortina(muitos).length, 10);
-  assert.equal(A.quadrosParaCortina(muitos.slice(0, 8)).length, 8);
-});

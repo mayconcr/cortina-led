@@ -253,7 +253,7 @@ test("animação da cortina: ANIM + LIGHT, só números testados", async () => {
   cortina.desconectar();
 });
 
-test("animação na cortina: cada quadro redesenhado inteiro (SMVEW 01, LEDs acesos, SMVEW 02) até parar", async () => {
+test("animação na cortina: entra no modo desenho, 1º quadro inteiro, depois só o que muda (preto apaga)", async () => {
   const { cortina, falsa } = await conectada();
   const q0 = Array.from({ length: 20 }, () => Array(20).fill(null));
   const q1 = Array.from({ length: 20 }, () => Array(20).fill(null));
@@ -263,22 +263,20 @@ test("animação na cortina: cada quadro redesenhado inteiro (SMVEW 01, LEDs ace
   q1[6][7] = [0, 0, 255];
   const mostrados = [];
   const antes = falsa.escritas.length;
-  const fim = cortina.tocarQuadros([q0, q1], { brilho: 40, aoQuadro: (i) => mostrados.push(i) });
+  const fim = cortina.tocarQuadros([q0, q1], { ms: 40, brilho: 40, aoQuadro: (i) => mostrados.push(i) });
   assert.ok(cortina.tocandoAnimacao);
-  for (let i = 0; i < 100 && mostrados.length < 3; i++) await dormir(20);
+  for (let i = 0; i < 100 && mostrados.length < 4; i++) await dormir(20);
   await cortina.ligar(); // qualquer outro comando para a animação
   await fim;
   assert.ok(!cortina.tocandoAnimacao);
   const seq = falsa.escritas.slice(antes).map((e) => {
     const pk = decifrar(e.dados);
-    return e.uuid === UUID.PIX ? `P${pk[1]},${pk[2]}` : `${texto(pk).slice(0, 5)}${pk[0] === 6 && texto(pk).startsWith("SMVEW") ? pk[6] : ""}`;
+    if (e.uuid === UUID.PIX) return `P${pk[1]},${pk[2]}${pk[3] + pk[4] + pk[5] ? "" : "-preto"}`;
+    return texto(pk).startsWith("SMVEW") ? `SMVEW${pk[6]}` : texto(pk).slice(0, 5);
   });
-  assert.deepEqual(seq.slice(0, 12), ["SMVEW1", "P3,4", "P5,5", "SMVEW2", "SMVEW1", "P5,5", "P6,7", "SMVEW2", "SMVEW1", "P3,4", "P5,5", "SMVEW2"]);
-  assert.equal(seq.at(-1), "LEDON");
-  for (const e of falsa.escritas.slice(antes).filter((x) => x.uuid === UUID.PIX)) {
-    const pk = decifrar(e.dados);
-    assert.ok(pk[3] + pk[4] + pk[5] > 0, "nunca manda pixel preto");
-  }
-  assert.deepEqual(mostrados.slice(0, 3), [0, 1, 0]);
+  assert.deepEqual(seq.slice(0, 9), ["SMVEW1", "SMVEW2", "SMVEW1", "P3,4", "P5,5", "P3,4-preto", "P6,7", "P3,4", "P6,7-preto"]);
+  assert.deepEqual(seq.slice(-2), ["SMVEW2", "LEDON"], "fecha o desenho antes do próximo comando");
+  assert.equal(seq.filter((s) => s === "SMVEW1").length, 2, "não apaga a tela entre os quadros");
+  assert.deepEqual(mostrados.slice(0, 4), [0, 1, 0, 1]);
   cortina.desconectar();
 });

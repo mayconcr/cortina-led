@@ -54,17 +54,3 @@ export function brilhoSeguroAnimacao(quadros, pedido) {
   return Math.min(...quadros.map((q) => brilhoSeguro(q, pedido)));
 }
 
-/**
- * Na cortina, cada quadro é redesenhado inteiro (SMVEW 01 + LEDs acesos + SMVEW 02) e aparece de uma vez.
- * Tempo médio por quadro, em segundos: ~32 ms por LED aceso + ~100 ms de abrir e fechar.
- */
-export function segundosPorQuadroNaCortina(quadros, msPorLed = MS_POR_PIXEL) {
-  const total = quadros.reduce((s, q) => s + contarAcesos(q) * msPorLed + 100, 0);
-  return total / quadros.length / 1000;
-}
-
-/** Quadros que vão para a cortina: no máximo `max`, pegando um a cada tantos (animações longas ficam curtas). */
-export function quadrosParaCortina(quadros, max = 10) {
-  const passo = Math.max(1, Math.ceil(quadros.length / max));
-  return quadros.filter((_, i) => i % passo === 0);
-}

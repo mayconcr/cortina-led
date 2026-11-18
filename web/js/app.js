@@ -20,7 +20,7 @@ import {
   VELOCIDADE_PADRAO,
 } from "./protocol.js";
 import { Animador, Reprodutor, desenharGrade } from "./tela.js";
-import { brilhoSeguroAnimacao, quadrosParaCortina, segundosPorQuadroNaCortina } from "./animacao.js";
+import { brilhoSeguroAnimacao, duracoes, resumoAnimacao } from "./animacao.js";
 import { ANIMACOES_MOVIMENTO } from "./natal-movimento.js";
 import { $, $$, abrirFolha, avisar, confirmar, el, fecharFolha, iniciarFolha, interruptor, pedirTexto, slider } from "./ui.js";
 
@@ -684,33 +684,33 @@ function renderMovimento() {
   );
   $("#controle-brilho-nativas .controle").style.marginTop = "0";
   $("#nota-ao-vivo").textContent =
-    "A prévia mostra a animação no ritmo dela. Na cortina, cada quadro é redesenhado inteiro e aparece de uma vez, uns 2 a 6 s por quadro, como uma sequência de fotos.";
+    "Prévia no ritmo da cortina. Lá, o 1º quadro aparece aos poucos (uns 3 s) e depois só os LEDs que mudam são trocados.";
   $("#lista-movimento").replaceChildren(
     ...ANIMACOES_MOVIMENTO.map((item) => {
       const qs = item.criar();
-      const dur = qs.map(() => item.ms);
-      const naCortina = quadrosParaCortina(qs);
-      const seg = segundosPorQuadroNaCortina(naCortina);
+      const dur = duracoes(qs, item.ms);
+      const r = resumoAnimacao(qs, item.ms);
       const canvas = el("canvas", { class: "painel-led", "aria-hidden": "true" });
       reprodutor.adicionar(canvas, qs, dur);
       return el(
         "button",
-        { type: "button", class: "card-led", "aria-label": item.nome, onclick: () => abrirMovimento(item, qs, dur, naCortina, seg) },
+        { type: "button", class: "card-led", "aria-label": item.nome, onclick: () => abrirMovimento(item, qs, dur, r) },
         canvas,
-        el("span", { class: "nome" }, item.nome, el("span", { class: "meta" }, `Na cortina: ~${virgula(seg)} s/quadro`)),
+        el("span", { class: "nome" }, item.nome, el("span", { class: "meta" }, `${virgula(r.quadrosPorSegundo)} quadros/s`)),
       );
     }),
   );
 }
 
-function abrirMovimento(item, qs, dur, naCortina, seg) {
+function abrirMovimento(item, qs, dur, r) {
   const canvas = el("canvas", { class: "painel-led", "aria-label": `Prévia: ${item.nome}` });
   reprodutor.adicionar(canvas, qs, dur);
+  const comeco = Math.max(1, Math.round((r.ledsPrimeiroQuadro * G.MS_POR_PIXEL) / 1000));
   const info = el(
     "p",
     { class: "nota" },
-    `Na cortina: ${naCortina.length} quadros, ~${virgula(seg)} s cada (a cortina mostra o quadro inteiro de uma vez, ` +
-      `quando termina de recebê-lo). Uma volta completa leva ~${Math.round(seg * naCortina.length)} s.`,
+    `Na cortina, o 1º quadro aparece aos poucos (~${comeco} s). Depois, só os LEDs que mudam: ` +
+      `${virgula(r.quadrosPorSegundo)} quadros/s, até ${r.maxMudancas} LEDs por quadro.`,
   );
   const tocar = el(
     "button",
@@ -720,11 +720,11 @@ function abrirMovimento(item, qs, dur, naCortina, seg) {
       onclick: () => {
         fecharFolha();
         if (!exigirConexao()) return;
-        const brilho = brilhoSeguroAnimacao(naCortina, estado.brilhoDesenho);
+        const brilho = brilhoSeguroAnimacao(qs, estado.brilhoDesenho);
         if (brilho < estado.brilhoDesenho) avisar(`Brilho reduzido para ${brilho}% para proteger a fonte`, "aviso");
         $("#tocando-titulo").textContent = `Tocando “${item.nome}”`;
-        $("#tocando-texto").textContent = `~${virgula(seg)} s por quadro · toque em Parar ou mande outro comando`;
-        cortina.tocarQuadros(naCortina, { brilho, rotulo: item.nome }).catch((erro) => avisar(erro.message || String(erro), "erro"));
+        $("#tocando-texto").textContent = `${virgula(r.quadrosPorSegundo)} quadros/s · toque em Parar ou mande outro comando`;
+        cortina.tocarQuadros(qs, { ms: item.ms, brilho, rotulo: item.nome }).catch((erro) => avisar(erro.message || String(erro), "erro"));
       },
     },
     "Mostrar na cortina",
