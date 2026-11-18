@@ -100,3 +100,9 @@ test("quadro ignora pixels apagados e só manda os acesos", () => {
   assert.equal(pk.length, 1);
   assert.deepEqual(Array.from(pk[0].slice(0, 6)), [5, 3, 5, 0, 102, 0]); // linha 3, coluna 5, G R B
 });
+
+test("ANIM: só os números testados na cortina (0E trenó, 1E cubo, 31 aleatório)", () => {
+  assert.equal(P.hexs(P.anim(0x0e)).slice(0, 17), "05 41 4E 49 4D 0E");
+  for (const n of [0, 1, 0x0f, 0x1a, 0x32, 255, -1, 1.5, "14"]) assert.throws(() => P.anim(n), RangeError, `ANIM ${n}`);
+  assert.deepEqual(Object.keys(P.ANIMACOES_CORTINA).map(Number).sort((a, b) => a - b), [0x0e, 0x1e, 0x31]);
+});

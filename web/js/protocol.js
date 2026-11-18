@@ -143,6 +143,19 @@ export function efeito(n, brilho = BRILHO_MAX, velocidade = VELOCIDADE_PADRAO) {
   return [...effApp(n), lightBrilho(brilho), speed(velocidade)];
 }
 
+// ---------- animações guardadas na cortina (PROTOCOLO §5quater) ----------
+
+/** Números testados na cortina em 2026-11-17. Outros exigem nova captura (CLAUDE.md, regra 1). */
+export const ANIMACOES_CORTINA = Object.freeze({ 0x0e: "Trenó do Papai Noel", 0x1e: "Cubo girando", 0x31: "Desenho aleatório" });
+
+/** 05 'ANIM' NN — a cortina toca sozinha uma animação guardada nela (o app manda LIGHT logo depois). */
+export function anim(numero) {
+  if (!Number.isInteger(numero) || !(numero in ANIMACOES_CORTINA)) {
+    throw new RangeError(`ANIM ${numero} não foi testado na cortina; só ${Object.keys(ANIMACOES_CORTINA).map((n) => Number(n).toString(16)).join(", ")} (hex)`);
+  }
+  return completar([0x05, ...ascii("ANIM"), numero]);
+}
+
 // ---------- desenho (SMVEW + pixels na …960B) ----------
 
 /** 05 'MODE' 03 — só o valor 03 (rolar para a esquerda) foi testado; outros são recusados. */

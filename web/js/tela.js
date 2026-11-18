@@ -102,3 +102,60 @@ export class Animador {
     requestAnimationFrame(this._quadro);
   }
 }
+
+/**
+ * Toca várias animações quadro a quadro em <canvas> com um único relógio, no mesmo ritmo que a cortina
+ * vai ter (`duracoes` em ms por quadro, de animacao.duracoes). Só redesenha o que está na tela.
+ */
+export class Reprodutor {
+  constructor() {
+    this.itens = new Map();
+    this.visiveis = new Set();
+    this.parado = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    this.observador =
+      "IntersectionObserver" in window
+        ? new IntersectionObserver((entradas) => {
+            for (const e of entradas) {
+              if (e.isIntersecting) this.visiveis.add(e.target);
+              else this.visiveis.delete(e.target);
+            }
+          })
+        : null;
+    this._quadro = this._quadro.bind(this);
+    requestAnimationFrame(this._quadro);
+  }
+
+  adicionar(canvas, quadros, duracoes) {
+    const ciclo = duracoes.reduce((s, d) => s + d, 0);
+    this.itens.set(canvas, { quadros, duracoes, ciclo, inicio: performance.now(), mostrado: -1 });
+    if (this.observador) this.observador.observe(canvas);
+    else this.visiveis.add(canvas);
+    requestAnimationFrame(() => desenharGrade(canvas, quadros[0]));
+  }
+
+  remover(canvas) {
+    this.itens.delete(canvas);
+    this.visiveis.delete(canvas);
+    this.observador?.unobserve(canvas);
+  }
+
+  _quadro(agora) {
+    for (const canvas of this.visiveis) {
+      const item = this.itens.get(canvas);
+      if (!item || !canvas.isConnected) {
+        this.remover(canvas);
+        continue;
+      }
+      let i = 0;
+      if (!this.parado) {
+        let t = (agora - item.inicio) % item.ciclo;
+        while (i < item.duracoes.length - 1 && t >= item.duracoes[i]) t -= item.duracoes[i++];
+      }
+      if (i !== item.mostrado) {
+        item.mostrado = i;
+        desenharGrade(canvas, item.quadros[i]);
+      }
+    }
+    requestAnimationFrame(this._quadro);
+  }
+}

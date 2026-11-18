@@ -9,6 +9,7 @@ import { gravar, ler } from "./memoria.js";
 import { COLECOES_ANIMACOES } from "./colecoes.js";
 import { DESENHOS_NATAL } from "./natal.js";
 import {
+  ANIMACOES_CORTINA,
   BRILHO_EFEITO_MAX,
   BRILHO_EFEITO_MIN,
   BRILHO_MAX,
@@ -18,7 +19,9 @@ import {
   VELOCIDADE_MIN,
   VELOCIDADE_PADRAO,
 } from "./protocol.js";
-import { Animador, desenharGrade } from "./tela.js";
+import { Animador, Reprodutor, desenharGrade } from "./tela.js";
+import { brilhoSeguroAnimacao, duracoes, resumoAnimacao } from "./animacao.js";
+import { ANIMACOES_MOVIMENTO } from "./natal-movimento.js";
 import { $, $$, abrirFolha, avisar, confirmar, el, fecharFolha, iniciarFolha, interruptor, pedirTexto, slider } from "./ui.js";
 
 const entre = (v, min, max, padrao) => (Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : padrao);
@@ -42,6 +45,11 @@ const ICONE_LAPIS = '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z" 
 const cortina = new Cortina();
 cortina.pixComResposta = ler("pixComResposta", false) === true;
 const animador = new Animador(6);
+const reprodutor = new Reprodutor();
+
+// Envio AO VIVO das nossas animações (só os LEDs que mudam, preto apaga). Fica desligado até o teste
+// na cortina confirmar que ela mostra os pixels na hora (ver docs/DESCOBERTAS.md).
+const AO_VIVO_LIBERADO = false;
 const registro = [];
 
 const estado = {
@@ -63,6 +71,7 @@ const estado = {
   galeria: ler("galeria", []),
   filtroGaleria: ler("filtroGaleria", "natal"),
   filtroAnimacoes: ler("filtroAnimacoes", "natal"),
+  brilhoNativo: entre(ler("brilhoNativo", BRILHO_MAX), BRILHO_EFEITO_MIN, BRILHO_EFEITO_MAX, BRILHO_MAX),
   modoCriar: ler("modoCriar", "desenhar"),
   texto: { texto: "NOEL", fonte: "grande", alinhamento: "centro", cor: [255, 0, 0], ...ler("texto", {}) },
   imagem: { fonte: null, zoom: 1, x: 0, y: 0, limiar: 30, vivas: true, grade: null },
@@ -229,7 +238,8 @@ function trocarAba(nome) {
   for (const s of $$(".aba")) s.hidden = s.id !== `aba-${nome}`;
   for (const b of $$(".abas button")) b.setAttribute("aria-current", b.dataset.aba === nome ? "page" : "false");
   $("#titulo").textContent = $(`#aba-${nome}`).dataset.titulo;
-  if (nome === "animacoes") renderAnimacoes();
+  if (nome === "cenas") renderAnimacoes();
+  if (nome === "animacoes") renderMovimento();
   if (nome === "galeria") renderGaleria();
   if (nome === "criar") trocarModoCriar(estado.modoCriar);
   window.scrollTo(0, 0);
@@ -635,6 +645,114 @@ function abrirAnimacao(item, grade) {
     { aoFechar: () => animador.remover(canvas) },
   );
 }
+
+// ============================================================
+//             Animações (quadro a quadro) e as da cortina
+// ============================================================
+
+const ICONE_PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z" /></svg>';
+let movimentoPronto = false;
+
+function renderMovimento() {
+  if (movimentoPronto) return;
+  movimentoPronto = true;
+  // guardadas na cortina: o app só manda o número (ANIM NN) e a cortina toca sozinha, a 10 quadros/s
+  $("#lista-nativas").replaceChildren(
+    ...Object.entries(ANIMACOES_CORTINA).map(([numero, nome]) =>
+      el(
+        "div",
+        { class: "item-lista" },
+        el(
+          "button",
+          { type: "button", class: "principal", onclick: () => executar(() => cortina.animacaoNativa(Number(numero), estado.brilhoNativo), `${nome} na cortina`) },
+          el("span", { class: "num", html: ICONE_PLAY }),
+          el("span", { class: "nome" }, nome),
+        ),
+      ),
+    ),
+  );
+  $("#controle-brilho-nativas").replaceChildren(
+    slider({
+      rotulo: "Brilho das animações da cortina",
+      min: BRILHO_EFEITO_MIN,
+      max: BRILHO_EFEITO_MAX,
+      passo: 5,
+      valor: estado.brilhoNativo,
+      formato: (v) => `${v}%`,
+      aoMudar: (v) => {
+        estado.brilhoNativo = v;
+        gravar("brilhoNativo", v);
+      },
+    }),
+  );
+  $("#controle-brilho-nativas .controle").style.marginTop = "0";
+  $("#nota-ao-vivo").textContent = AO_VIVO_LIBERADO
+    ? "Na cortina, cada LED que muda leva ~32 ms; a prévia já mostra o ritmo real."
+    : "Prévia no ritmo real da cortina. O envio para a cortina será liberado depois do teste ao vivo.";
+  $("#lista-movimento").replaceChildren(
+    ...ANIMACOES_MOVIMENTO.map((item) => {
+      const qs = item.criar();
+      const dur = duracoes(qs, item.ms);
+      const r = resumoAnimacao(qs, item.ms);
+      const canvas = el("canvas", { class: "painel-led", "aria-hidden": "true" });
+      reprodutor.adicionar(canvas, qs, dur);
+      return el(
+        "button",
+        { type: "button", class: "card-led", "aria-label": item.nome, onclick: () => abrirMovimento(item, qs, dur, r) },
+        canvas,
+        el("span", { class: "nome" }, item.nome, el("span", { class: "meta" }, `${virgula(r.quadrosPorSegundo)} quadros/s`)),
+      );
+    }),
+  );
+}
+
+function abrirMovimento(item, qs, dur, r) {
+  const canvas = el("canvas", { class: "painel-led", "aria-label": `Prévia: ${item.nome}` });
+  reprodutor.adicionar(canvas, qs, dur);
+  const desenho = Math.max(1, Math.round((r.ledsPrimeiroQuadro * G.MS_POR_PIXEL) / 1000));
+  const info = el(
+    "p",
+    { class: "nota" },
+    `${r.quadros} quadros · ${virgula(r.quadrosPorSegundo)} quadros/s na cortina · muda até ${r.maxMudancas} LEDs por quadro · o 1º quadro leva ~${desenho} s para aparecer`,
+  );
+  const tocar = el(
+    "button",
+    {
+      type: "button",
+      class: "botao primario",
+      disabled: !AO_VIVO_LIBERADO,
+      onclick: () => {
+        fecharFolha();
+        if (!exigirConexao()) return;
+        const brilho = brilhoSeguroAnimacao(qs, estado.brilhoDesenho);
+        if (brilho < estado.brilhoDesenho) avisar(`Brilho reduzido para ${brilho}% para proteger a fonte`, "aviso");
+        $("#tocando-titulo").textContent = `Tocando “${item.nome}”`;
+        $("#tocando-texto").textContent = `${virgula(r.quadrosPorSegundo)} quadros/s · toque em Parar ou mande outro comando`;
+        cortina.tocarQuadros(qs, { ms: item.ms, brilho, rotulo: item.nome }).catch((erro) => avisar(erro.message || String(erro), "erro"));
+      },
+    },
+    "Mostrar na cortina",
+  );
+  abrirFolha(
+    el(
+      "div",
+      {},
+      el("h3", {}, item.nome),
+      el("p", { class: "subtitulo" }, "Animação quadro a quadro, no ritmo que a cortina consegue."),
+      canvas,
+      info,
+      controleBrilhoDesenho(),
+      el("div", { class: "par-botoes" }, tocar),
+      AO_VIVO_LIBERADO ? null : el("p", { class: "nota alerta" }, "Ainda falta o teste do envio ao vivo na cortina."),
+    ),
+    { aoFechar: () => reprodutor.remover(canvas) },
+  );
+}
+
+cortina.addEventListener("animacao", (e) => {
+  $("#tocando").hidden = !e.detail.tocando;
+});
+$("#tocando-parar").addEventListener("click", () => cortina.pararAnimacao());
 
 // ============================================================
 //                         Galeria

@@ -7,6 +7,7 @@
 
 import { cifrar, decifrar } from "./aes.js";
 import * as JL from "./jlauth.js";
+import { diferencas } from "./animacao.js";
 import * as P from "./protocol.js";
 
 const curto = (n) => `0000${n.toString(16)}-0000-1000-8000-00805f9b34fb`;
@@ -269,9 +270,10 @@ export class Cortina extends EventTarget {
     if (!this.conectada) throw new Error("Conecte a cortina primeiro.");
   }
 
-  /** Enfileira uma lista de pacotes já validados para a CMD. */
+  /** Enfileira uma lista de pacotes já validados para a CMD (e para a animação que estiver tocando). */
   _comandos(rotulo, pacotes) {
     this._exigirConexao();
+    this.pararAnimacao();
     return this._enfileirar(async () => {
       for (const pk of pacotes) await this._cmd(pk);
       this.log(`→ ${rotulo}`);
@@ -305,6 +307,7 @@ export class Cortina extends EventTarget {
   desenhar(grade, { brilho = P.BRILHO_MAX, rolar = false, velocidade = null, aoProgresso, sinal } = {}) {
     this._exigirConexao();
     const pixels = P.quadro(grade, brilho);
+    this.pararAnimacao();
     const fechar = [P.smvew(2)];
     if (rolar) fechar.push(P.mode(P.MODO_ROLAR));
     if (rolar && velocidade !== null) fechar.push(P.speed(velocidade));
@@ -336,5 +339,64 @@ export class Cortina extends EventTarget {
   /** Apaga o desenho: SMVEW 01 + SMVEW 02, sem pixels (confirmado na Fase 3). */
   apagar() {
     return this._comandos("Apagar desenho", [P.smvew(1), P.smvew(2)]);
+  }
+
+  // ---------- animações ----------
+
+  /** Toca uma animação guardada na cortina: ANIM NN + LIGHT, como o app oficial (testado em 2026-11-17). */
+  animacaoNativa(numero, brilho) {
+    return this._comandos(`Animação da cortina ${P.ANIMACOES_CORTINA[numero] || numero}`, [P.anim(numero), P.lightBrilho(brilho)]);
+  }
+
+  get tocandoAnimacao() {
+    return !!this._animacao;
+  }
+
+  /** Para a animação ao vivo que estiver tocando (o fechamento SMVEW 02 sai no fim da tarefa). */
+  pararAnimacao() {
+    if (this._animacao) this._animacao.abort();
+  }
+
+  /**
+   * Toca uma animação nossa AO VIVO (quadros 20×20 em loop): SMVEW 01, o primeiro quadro inteiro e, a cada
+   * quadro seguinte, só os LEDs que mudam (apagar = pixel preto 05 LL CC 00 00 00). Fica em loop até
+   * pararAnimacao() ou qualquer outro comando; no fim manda SMVEW 02. `aoQuadro(i)` avisa o quadro mostrado.
+   * Cada quadro dura pelo menos `ms` (mais, se tiver muitos LEDs para trocar: ~32 ms por LED).
+   */
+  tocarQuadros(quadros, { ms = 200, brilho = P.BRILHO_MAX, aoQuadro, rotulo = "animação" } = {}) {
+    this._exigirConexao();
+    quadros.forEach((q) => P.quadro(q, brilho)); // valida tudo antes de começar (lança erro se algo sair dos limites)
+    this.pararAnimacao();
+    const controle = new AbortController();
+    this._animacao = controle;
+    this._emitir("animacao", { tocando: true, rotulo });
+    return this._enfileirar(async () => {
+      let atual = null;
+      let trocas = 0;
+      await this._cmd(P.smvew(1));
+      try {
+        while (!controle.signal.aborted) {
+          for (let i = 0; i < quadros.length && !controle.signal.aborted; i++) {
+            const inicio = performance.now();
+            for (const [col, lin, cor] of diferencas(atual, quadros[i])) {
+              if (controle.signal.aborted) break;
+              const [r, g, b] = cor || [0, 0, 0];
+              await this._escrever(this.c.pix, cifrar(P.pixel(col, lin, r, g, b, brilho)), this.pixComResposta);
+              trocas++;
+            }
+            if (controle.signal.aborted) break;
+            atual = quadros[i];
+            aoQuadro?.(i);
+            const falta = ms - (performance.now() - inicio);
+            if (falta > 0) await dormir(falta);
+          }
+        }
+      } finally {
+        if (this._animacao === controle) this._animacao = null;
+        if (this.dispositivo?.gatt.connected) await this._cmd(P.smvew(2));
+        this._emitir("animacao", { tocando: false, rotulo });
+        this.log(`→ Animação ${rotulo} parada (${trocas} LEDs trocados)`);
+      }
+    });
   }
 }

@@ -37,6 +37,7 @@ FUNCOES = {
     "pixelXY": p.pixel_xy,
     "pixel": p.pixel,
     "quadro": p.quadro,
+    "anim": p.anim,
 }
 
 CASOS = [
@@ -67,6 +68,9 @@ CASOS = [
     ("speed", [1]),
     ("speed", [16]),
     ("mode", [3]),
+    ("anim", [0x0E]),
+    ("anim", [0x1E]),
+    ("anim", [0x31]),
     ("smvew", [1]),
     ("smvew", [2]),
     ("pixelXY", [7, 5, 255, 0, 0, 40]),

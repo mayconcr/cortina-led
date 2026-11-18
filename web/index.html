@@ -68,8 +68,21 @@
         <p class="nota centro">Toque no lápis para dar um nome a cada efeito.</p>
       </section>
 
-      <!-- ============ Animações ============ -->
+      <!-- ============ Animações (quadro a quadro) ============ -->
       <section class="aba" id="aba-animacoes" data-titulo="Animações" hidden>
+        <p class="intro">Desenhos que se mexem de verdade: pernas galopando, chamas tremulando, luzes correndo.</p>
+        <h2 class="rotulo-secao">Guardadas na cortina</h2>
+        <div class="lista" id="lista-nativas"></div>
+        <div class="cartao" id="controle-brilho-nativas"></div>
+        <div class="secao-topo">
+          <h2 class="rotulo-secao">Natal com movimento</h2>
+        </div>
+        <p class="nota aviso-ao-vivo" id="nota-ao-vivo"></p>
+        <div class="grade-cards" id="lista-movimento"></div>
+      </section>
+
+      <!-- ============ Cenas (rolagem) ============ -->
+      <section class="aba" id="aba-cenas" data-titulo="Cenas" hidden>
         <div class="chips" id="animacoes-filtro" role="tablist" aria-label="Coleções de animações">
           <button type="button" role="tab" data-valor="natal">Natal</button>
           <button type="button" role="tab" data-valor="ano-novo">Ano Novo</button>
@@ -175,6 +188,17 @@
       <div class="barra"><div id="envio-barra"></div></div>
     </div>
 
+    <!-- animação tocando ao vivo na cortina -->
+    <div class="progresso" id="tocando" hidden>
+      <div class="progresso-topo">
+        <div>
+          <strong id="tocando-titulo">Tocando</strong>
+          <span class="nota" id="tocando-texto"></span>
+        </div>
+        <button class="botao tonal pequeno" type="button" id="tocando-parar">Parar</button>
+      </div>
+    </div>
+
     <!-- folha que sobe de baixo -->
     <div class="folha-fundo" id="folha-fundo" hidden></div>
     <div class="folha" id="folha" role="dialog" aria-modal="true" hidden>
@@ -192,7 +216,10 @@
         <svg viewBox="0 0 24 24"><path d="M11 3l1.8 4.7 4.7 1.8-4.7 1.8L11 16l-1.8-4.7L4.5 9.5l4.7-1.8z" /><path d="M19 14l.8 2.2 2.2.8-2.2.8L19 20l-.8-2.2-2.2-.8 2.2-.8z" /></svg><span>Efeitos</span>
       </button>
       <button type="button" data-aba="animacoes">
-        <svg viewBox="0 0 24 24"><path d="M12 2l2.4 4.8L12 6l-2.4.8z" /><path d="M12 6l5 7H7z" /><path d="M12 11l6.5 8h-13z" /><path d="M12 19v3" /></svg><span>Animações</span>
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M10 8.5v7l6-3.5z" /></svg><span>Animações</span>
+      </button>
+      <button type="button" data-aba="cenas">
+        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M7 5v14M17 5v14M3 9.5h4M3 14.5h4M17 9.5h4M17 14.5h4" /></svg><span>Cenas</span>
       </button>
       <button type="button" data-aba="galeria">
         <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2" /><rect x="14" y="3" width="7" height="7" rx="2" /><rect x="3" y="14" width="7" height="7" rx="2" /><rect x="14" y="14" width="7" height="7" rx="2" /></svg><span>Galeria</span>
