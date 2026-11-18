@@ -2,6 +2,9 @@
 
 Este kit tem tudo o que o Claude Code precisa para criar o seu app de controle da cortina `IDL-6A9E5C`: o contexto, o protocolo Bluetooth já pesquisado, o plano por fases e as regras de segurança.
 
+## App publicado
+Abra **https://mayconcr.github.io/cortina-led/** no iPhone, pelo navegador **Bluefy** (o Safari não tem Web Bluetooth). Feche o app iDeal LED antes de conectar. O site é atualizado sozinho a cada push na `main` (`.github/workflows/pages.yml`).
+
 ## Como usar
 1. Descompacte esta pasta onde quiser, por exemplo em `Documentos/cortina-led`.
 2. Instale o Claude Code, se ainda não tiver (guia: https://code.claude.com/docs/en/quickstart):

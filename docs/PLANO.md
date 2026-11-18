@@ -66,7 +66,7 @@ Legenda: `[ ]` pendente · `[x]` concluída · 🛑 checkpoint (pare e espere o 
   - **Imagem:** foto → recorte quadrado → 20×20, com ajuste de brilho.
 - [x] 4.6 PWA (`manifest.webmanifest` + ícone) para "Adicionar à Tela de Início". Ícones gerados por `ferramentas/icones.py`. Atenção: no iPhone, o atalho criado pelo Safari abre sem Bluetooth; no Bluefy, use os favoritos dele.
 - [x] 4.7 Testar localmente no Chrome desktop, que tem Web Bluetooth, se o computador tiver BLE. Feito em 2026-11-16 (servidor: `.venv/bin/python -m http.server 8765 --bind 127.0.0.1 --directory web`, abrir `http://localhost:8765` no Chrome).
-- [ ] 4.8 Publicar no **GitHub Pages**: o Web Bluetooth exige HTTPS. Use `gh` se estiver disponível; senão, guie o usuário passo a passo. **Adiada pelo usuário em 2026-11-16** (nome escolhido: `cortina-led`; forma de publicar ainda a decidir).
+- [x] 4.8 Publicar no **GitHub Pages**: o Web Bluetooth exige HTTPS. **Feito em 2026-11-18:** repositório público `mayconcr/cortina-led`; o workflow `.github/workflows/pages.yml` roda os testes e publica a pasta `web/` a cada push na `main`. Endereço: https://mayconcr.github.io/cortina-led/
 - [ ] 4.9 Checklist no iPhone com o usuário: abrir no Bluefy → conectar → cada aba.
 
 **Aceite:** o usuário controla tudo pelo iPhone sem o app iDeal LED.
