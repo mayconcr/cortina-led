@@ -724,7 +724,7 @@ function abrirMovimento(item, qs, dur, r) {
         if (brilho < estado.brilhoDesenho) avisar(`Brilho reduzido para ${brilho}% para proteger a fonte`, "aviso");
         $("#tocando-titulo").textContent = `Tocando “${item.nome}”`;
         $("#tocando-texto").textContent = `${virgula(r.quadrosPorSegundo)} quadros/s · toque em Parar ou mande outro comando`;
-        cortina.tocarQuadros(qs, { ms: item.ms, brilho, rotulo: item.nome, primeiroPronto: true }).catch((erro) => avisar(erro.message || String(erro), "erro"));
+        cortina.tocarQuadros(qs, { ms: item.ms, brilho, rotulo: item.nome }).catch((erro) => avisar(erro.message || String(erro), "erro"));
       },
     },
     "Mostrar na cortina",

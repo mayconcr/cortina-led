@@ -153,7 +153,7 @@ test("comandos saem na ordem, cifrados, com pelo menos 30 ms entre escritas", as
   cortina.desconectar();
 });
 
-test("desenho: SMVEW 01, pixels cifrados na …960B sem resposta, SMVEW 02 e MODE 03 se rolar", async () => {
+test("desenho: sai do modo desenho (LEDON + preto), SMVEW 01, pixels sem resposta, SMVEW 02 e MODE 03 se rolar", async () => {
   const { cortina, falsa } = await conectada();
   const grade = Array.from({ length: 20 }, () => Array(20).fill(null));
   grade[0][0] = [255, 0, 0];
@@ -164,11 +164,12 @@ test("desenho: SMVEW 01, pixels cifrados na …960B sem resposta, SMVEW 02 e MOD
   const novas = falsa.escritas.slice(antes);
   assert.deepEqual(
     novas.map((e) => (e.uuid === UUID.PIX ? `PIX ${e.modo}` : texto(decifrar(e.dados)).slice(0, 5))),
-    ["SMVEW", "PIX sem", "PIX sem", "SMVEW", "MODE."],
+    ["LEDON", "COLO.", "SMVEW", "PIX sem", "PIX sem", "SMVEW", "MODE."],
   );
-  assert.deepEqual(Array.from(decifrar(novas[1].dados).slice(0, 6)), [5, 0, 0, 0, 102, 0]);
-  assert.deepEqual(Array.from(decifrar(novas[2].dados).slice(0, 6)), [5, 19, 19, 0, 0, 102]);
-  assert.equal(decifrar(novas[3].dados)[6], 2);
+  assert.deepEqual(Array.from(decifrar(novas[1].dados).slice(0, 8)), [7, 0x43, 0x4f, 0x4c, 0x4f, 0, 0, 0], "cor preta");
+  assert.deepEqual(Array.from(decifrar(novas[3].dados).slice(0, 6)), [5, 0, 0, 0, 102, 0]);
+  assert.deepEqual(Array.from(decifrar(novas[4].dados).slice(0, 6)), [5, 19, 19, 0, 0, 102]);
+  assert.equal(decifrar(novas[5].dados)[6], 2);
   assert.deepEqual(progresso, ["1/2", "2/2"]);
   assert.equal(r.cancelado, false);
   cortina.desconectar();
@@ -253,7 +254,7 @@ test("animação da cortina: ANIM + LIGHT, só números testados", async () => {
   cortina.desconectar();
 });
 
-test("animação na cortina: entra no modo desenho, 1º quadro inteiro, depois só o que muda (preto apaga)", async () => {
+test("animação: sai do modo desenho, 1º quadro escondido, SMVEW 02 (pronto) e depois só o que muda, sem SMVEW", async () => {
   const { cortina, falsa } = await conectada();
   const q0 = Array.from({ length: 20 }, () => Array(20).fill(null));
   const q1 = Array.from({ length: 20 }, () => Array(20).fill(null));
@@ -272,33 +273,22 @@ test("animação na cortina: entra no modo desenho, 1º quadro inteiro, depois s
   const seq = falsa.escritas.slice(antes).map((e) => {
     const pk = decifrar(e.dados);
     if (e.uuid === UUID.PIX) return `P${pk[1]},${pk[2]}${pk[3] + pk[4] + pk[5] ? "" : "-preto"}`;
-    return texto(pk).startsWith("SMVEW") ? `SMVEW${pk[6]}` : texto(pk).slice(0, 5);
+    if (texto(pk).startsWith("SMVEW")) return `SMVEW${pk[6]}`;
+    if (texto(pk).startsWith("COLO")) return `COLO${pk[5] + pk[6] + pk[7] ? "" : "-preto"}`;
+    return texto(pk).slice(0, 5);
   });
-  assert.deepEqual(seq.slice(0, 9), ["SMVEW1", "SMVEW2", "SMVEW1", "P3,4", "P5,5", "P3,4-preto", "P6,7", "P3,4", "P6,7-preto"]);
-  assert.deepEqual(seq.slice(-2), ["SMVEW2", "LEDON"], "fecha o desenho antes do próximo comando");
-  assert.equal(seq.filter((s) => s === "SMVEW1").length, 2, "não apaga a tela entre os quadros");
+  assert.deepEqual(seq.slice(0, 10), ["LEDON", "COLO-preto", "SMVEW1", "P3,4", "P5,5", "SMVEW2", "P3,4-preto", "P6,7", "P3,4", "P6,7-preto"]);
+  assert.equal(seq.filter((s) => s.startsWith("SMVEW")).length, 2, "abre e fecha uma vez só");
+  assert.equal(seq.at(-1), "LEDON", "o próximo comando vem logo depois, sem SMVEW 02 solto");
   assert.deepEqual(mostrados.slice(0, 4), [0, 1, 0, 1]);
   cortina.desconectar();
 });
 
-test("animação com o 1º quadro pronto: LEDON, quadro escondido, SMVEW 02, depois só o que muda", async () => {
+test("apagar: LEDON + cor preta (sem abrir/fechar desenho)", async () => {
   const { cortina, falsa } = await conectada();
-  const q0 = Array.from({ length: 20 }, () => Array(20).fill(null));
-  const q1 = Array.from({ length: 20 }, () => Array(20).fill(null));
-  q0[3][4] = [255, 0, 0];
-  q1[6][7] = [0, 0, 255];
-  const mostrados = [];
   const antes = falsa.escritas.length;
-  const fim = cortina.tocarQuadros([q0, q1], { ms: 40, brilho: 40, primeiroPronto: true, aoQuadro: (i) => mostrados.push(i) });
-  for (let i = 0; i < 100 && mostrados.length < 3; i++) await dormir(20);
-  cortina.pararAnimacao();
-  await fim;
-  const seq = falsa.escritas.slice(antes).map((e) => {
-    const pk = decifrar(e.dados);
-    if (e.uuid === UUID.PIX) return `P${pk[1]},${pk[2]}${pk[3] + pk[4] + pk[5] ? "" : "-preto"}`;
-    return texto(pk).startsWith("SMVEW") ? `SMVEW${pk[6]}` : texto(pk).slice(0, 5);
-  });
-  assert.deepEqual(seq.slice(0, 6), ["LEDON", "SMVEW1", "P3,4", "SMVEW2", "P3,4-preto", "P6,7"]);
-  assert.equal(seq.filter((s) => s.startsWith("SMVEW")).length, 2, "só abre e fecha uma vez");
+  await cortina.apagar();
+  const seq = falsa.escritas.slice(antes).map((e) => texto(decifrar(e.dados)).slice(0, 5));
+  assert.deepEqual(seq, ["LEDON", "COLO."]);
   cortina.desconectar();
 });
