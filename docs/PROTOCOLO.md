@@ -205,6 +205,9 @@ Também na conexão: o app manda comandos RCSP da JieLi (`FE DC BA C0 …`) no `
 `LEDS`. Nós **não** mandamos (no `0xAE00` só o handshake). O "aleatório" do handshake do app foi o mesmo dos dois dias
 (`67 C6 69 73 …`): o app usa sempre o mesmo. O `TIME` veio com dia da semana `02` numa terça (1 = segunda, confirmado).
 
+**Como o desenho aparece (confirmado em 2026-11-17):** `SMVEW 01` começa um desenho vazio; os pixels vão para
+uma memória e **nada aparece enquanto eles chegam**; o desenho inteiro aparece **de uma vez no `SMVEW 02`**.
+
 ## 6. Comandos TYPE1 (só se a cortina não for TYPE2)
 - Liga: `06 4C 45 44 4F 4E 00 …` ("LEDON") · Desliga: `06 4C 45 44 4F 46 46 00 …` ("LEDOFF")
 - Cor: `07 43 4F 4C 4F Gx Rx Bx 00 …`, com verde no byte 5, vermelho no 6 e azul no 7, em 5 bits (offsets 5/6/7 conferidos no `const.py` da integração HA; N = 07 = 4 letras + 3 parâmetros). Exemplo vermelho: `07 43 4F 4C 4F 00 1F 00 00 …`
