@@ -280,3 +280,25 @@ test("animação na cortina: entra no modo desenho, 1º quadro inteiro, depois s
   assert.deepEqual(mostrados.slice(0, 4), [0, 1, 0, 1]);
   cortina.desconectar();
 });
+
+test("animação com o 1º quadro pronto: LEDON, quadro escondido, SMVEW 02, depois só o que muda", async () => {
+  const { cortina, falsa } = await conectada();
+  const q0 = Array.from({ length: 20 }, () => Array(20).fill(null));
+  const q1 = Array.from({ length: 20 }, () => Array(20).fill(null));
+  q0[3][4] = [255, 0, 0];
+  q1[6][7] = [0, 0, 255];
+  const mostrados = [];
+  const antes = falsa.escritas.length;
+  const fim = cortina.tocarQuadros([q0, q1], { ms: 40, brilho: 40, primeiroPronto: true, aoQuadro: (i) => mostrados.push(i) });
+  for (let i = 0; i < 100 && mostrados.length < 3; i++) await dormir(20);
+  cortina.pararAnimacao();
+  await fim;
+  const seq = falsa.escritas.slice(antes).map((e) => {
+    const pk = decifrar(e.dados);
+    if (e.uuid === UUID.PIX) return `P${pk[1]},${pk[2]}${pk[3] + pk[4] + pk[5] ? "" : "-preto"}`;
+    return texto(pk).startsWith("SMVEW") ? `SMVEW${pk[6]}` : texto(pk).slice(0, 5);
+  });
+  assert.deepEqual(seq.slice(0, 6), ["LEDON", "SMVEW1", "P3,4", "SMVEW2", "P3,4-preto", "P6,7"]);
+  assert.equal(seq.filter((s) => s.startsWith("SMVEW")).length, 2, "só abre e fecha uma vez");
+  cortina.desconectar();
+});

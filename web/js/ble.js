@@ -365,10 +365,15 @@ export class Cortina extends EventTarget {
    *   sem fechar → SMVEW 02 ao parar (pararAnimacao() ou qualquer outro comando).
    * Cada quadro dura pelo menos `ms` (mais, se tiver muitos LEDs para trocar: ~32 ms por LED).
    * `aoQuadro(i)` avisa quando o quadro i terminou de aparecer.
+   *
+   * Com `primeiroPronto` (EM TESTE): LEDON (sai do modo desenho, então os pixels ficam escondidos) →
+   * SMVEW 01 → 1º quadro → SMVEW 02 (aparece pronto, de uma vez) → só o que muda, sem abrir nem fechar de novo.
+   * Depende de a cortina mostrar na hora os pixels que chegam depois do fechamento (a confirmar).
    */
-  tocarQuadros(quadros, { ms = 200, brilho = P.BRILHO_MAX, aoQuadro, rotulo = "animação" } = {}) {
+  tocarQuadros(quadros, { ms = 200, brilho = P.BRILHO_MAX, aoQuadro, rotulo = "animação", primeiroPronto = false } = {}) {
     this._exigirConexao();
-    quadros.forEach((q) => P.quadro(q, brilho)); // valida tudo antes de começar
+    const primeiro = P.quadro(quadros[0], brilho); // valida tudo antes de começar
+    quadros.forEach((q) => P.quadro(q, brilho));
     this.pararAnimacao();
     const controle = new AbortController();
     this._animacao = controle;
@@ -376,9 +381,19 @@ export class Cortina extends EventTarget {
     return this._enfileirar(async () => {
       let atual = null;
       let trocas = 0;
-      await this._cmd(P.smvew(1));
-      await this._cmd(P.smvew(2));
-      await this._cmd(P.smvew(1));
+      if (primeiroPronto) {
+        await this._cmd(P.ledon());
+        await this._cmd(P.smvew(1));
+        for (const pk of primeiro) await this._escrever(this.c.pix, cifrar(pk), this.pixComResposta);
+        await this._cmd(P.smvew(2));
+        atual = quadros[0];
+        aoQuadro?.(0);
+        await dormir(ms);
+      } else {
+        await this._cmd(P.smvew(1));
+        await this._cmd(P.smvew(2));
+        await this._cmd(P.smvew(1));
+      }
       try {
         while (!controle.signal.aborted) {
           for (let i = 0; i < quadros.length && !controle.signal.aborted; i++) {
@@ -398,7 +413,8 @@ export class Cortina extends EventTarget {
         }
       } finally {
         if (this._animacao === controle) this._animacao = null;
-        if (this.dispositivo?.gatt.connected) await this._cmd(P.smvew(2));
+        // no modo "1º quadro pronto" o desenho já está fechado; outro SMVEW 02 solto deu resultado estranho (17/11)
+        if (!primeiroPronto && this.dispositivo?.gatt.connected) await this._cmd(P.smvew(2));
         this._emitir("animacao", { tocando: false, rotulo });
         this.log(`→ Animação ${rotulo} parada (${trocas} LEDs trocados)`);
       }
