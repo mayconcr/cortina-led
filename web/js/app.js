@@ -684,7 +684,7 @@ function renderMovimento() {
   );
   $("#controle-brilho-nativas .controle").style.marginTop = "0";
   $("#nota-ao-vivo").textContent =
-    "Prévia no ritmo da cortina. Lá, o 1º quadro aparece aos poucos (uns 3 s) e depois só os LEDs que mudam são trocados.";
+    "Prévia no ritmo da cortina. Lá, o desenho carrega escondido por uns segundos, aparece pronto e depois só os LEDs que mudam são trocados.";
   $("#lista-movimento").replaceChildren(
     ...ANIMACOES_MOVIMENTO.map((item) => {
       const qs = item.criar();
@@ -709,7 +709,7 @@ function abrirMovimento(item, qs, dur, r) {
   const info = el(
     "p",
     { class: "nota" },
-    `Na cortina, o 1º quadro aparece aos poucos (~${comeco} s). Depois, só os LEDs que mudam: ` +
+    `Na cortina, o desenho carrega escondido (~${comeco} s) e aparece pronto. Depois, só os LEDs que mudam: ` +
       `${virgula(r.quadrosPorSegundo)} quadros/s, até ${r.maxMudancas} LEDs por quadro.`,
   );
   const tocar = el(
@@ -724,7 +724,7 @@ function abrirMovimento(item, qs, dur, r) {
         if (brilho < estado.brilhoDesenho) avisar(`Brilho reduzido para ${brilho}% para proteger a fonte`, "aviso");
         $("#tocando-titulo").textContent = `Tocando “${item.nome}”`;
         $("#tocando-texto").textContent = `${virgula(r.quadrosPorSegundo)} quadros/s · toque em Parar ou mande outro comando`;
-        cortina.tocarQuadros(qs, { ms: item.ms, brilho, rotulo: item.nome }).catch((erro) => avisar(erro.message || String(erro), "erro"));
+        cortina.tocarQuadros(qs, { ms: item.ms, brilho, rotulo: item.nome, primeiroPronto: true }).catch((erro) => avisar(erro.message || String(erro), "erro"));
       },
     },
     "Mostrar na cortina",
