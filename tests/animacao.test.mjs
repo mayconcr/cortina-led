@@ -1,9 +1,10 @@
-// Testes do motor de animação (web/js/animacao.js) e das 31 animações de Natal com movimento.
+// Testes do motor de animação (web/js/animacao.js), das ferramentas de movimento e das 40 animações de Natal.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import * as A from "../web/js/animacao.js";
 import * as G from "../web/js/grade.js";
+import * as M from "../web/js/movimento.js";
 import { ANIMACOES_MOVIMENTO } from "../web/js/natal-movimento.js";
 import { quadro } from "../web/js/protocol.js";
 
@@ -43,19 +44,35 @@ test("resumo e brilho seguro da animação", () => {
   assert.equal(A.brilhoSeguroAnimacao([q, cheia], 40), 30);
 });
 
-test("31 animações de Natal com movimento, ids únicos, nomes curtos", () => {
-  assert.equal(ANIMACOES_MOVIMENTO.length, 31);
-  assert.equal(new Set(ANIMACOES_MOVIMENTO.map((a) => a.id)).size, 31);
+test("ferramentas de movimento: pulo, vai e volta, fluxo que dá a volta na tela", () => {
+  assert.deepEqual([0, 1, 2, 3, 4, 5, 6].map((t) => M.vaiVolta(t, 4)), [0, 1, 2, 3, 2, 1, 0]);
+  assert.equal(M.pulo(0, 10, 5), 0);
+  assert.equal(M.pulo(5, 10, 5), 5);
+  assert.equal(M.mod(-1, 20), 19);
+  const g = G.novaGrade();
+  M.fluxo(g, 3, [[18, 0]], { vx: 1 }); // 18 + 3 = 21 → coluna 1
+  assert.ok(g[0][1] && !g[0][18]);
+  const h = G.novaGrade();
+  h[0][1] = [1, 2, 3];
+  M.atras(h, [[1, 0], [2, 0]], "W"); // não apaga o que já está aceso
+  assert.deepEqual(h[0][1], [1, 2, 3]);
+  assert.ok(h[0][2]);
+});
+
+test("40 animações de Natal com movimento, ids únicos, nomes curtos", () => {
+  assert.equal(ANIMACOES_MOVIMENTO.length, 40);
+  assert.equal(new Set(ANIMACOES_MOVIMENTO.map((a) => a.id)).size, 40);
   for (const a of ANIMACOES_MOVIMENTO) {
+    assert.ok(a.id.startsWith("mov-"), a.id);
     assert.ok(a.nome.length <= 24, a.id);
-    assert.ok(Number.isInteger(a.ms) && a.ms >= 100 && a.ms <= 500, a.id);
+    assert.ok(Number.isInteger(a.ms) && a.ms >= 80 && a.ms <= 500, a.id);
   }
 });
 
 test("cada animação: quadros 20×20 válidos, que mexem de verdade e cabem no Bluetooth", () => {
   for (const a of ANIMACOES_MOVIMENTO) {
     const qs = a.criar();
-    assert.ok(qs.length >= 4 && qs.length <= 60, `${a.id}: ${qs.length} quadros`);
+    assert.ok(qs.length >= 8 && qs.length <= 96, `${a.id}: ${qs.length} quadros`);
     for (const q of qs) {
       assert.equal(q.length, 20, a.id);
       assert.ok(q.every((l) => l.length === 20), a.id);
@@ -63,9 +80,10 @@ test("cada animação: quadros 20×20 válidos, que mexem de verdade e cabem no 
       assert.ok(G.contarAcesos(q) <= 220, `${a.id}: quadro com LEDs demais`);
     }
     const r = A.resumoAnimacao(qs, a.ms);
-    assert.ok(r.maxMudancas >= 1, `${a.id}: não mexe`);
+    assert.ok(r.mediaMudancas >= 3, `${a.id}: quase não mexe (média ${r.mediaMudancas.toFixed(1)})`);
     assert.ok(r.maxMudancas <= 20, `${a.id}: até ${r.maxMudancas} LEDs mudando num quadro`);
     assert.ok(r.mediaMudancas <= 12, `${a.id}: média ${r.mediaMudancas.toFixed(1)} LEDs por quadro`);
+    assert.ok(r.ledsPrimeiroQuadro <= 130, `${a.id}: 1º quadro com ${r.ledsPrimeiroQuadro} LEDs (aparece aos poucos)`);
     const b = A.brilhoSeguroAnimacao(qs, 40);
     for (const q of qs) assert.ok(quadro(q, b).reduce((s, pk) => s + pk[3] + pk[4] + pk[5], 0) <= G.ORCAMENTO, a.id);
   }

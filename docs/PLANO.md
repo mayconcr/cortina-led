@@ -74,6 +74,7 @@ Legenda: `[ ]` pendente · `[x]` concluída · 🛑 checkpoint (pare e espere o 
 
 ## Fase 5: Extras (escolher com o usuário)
 - [x] 5.1 Animações (sequência de quadros), se a taxa medida na 3.6 permitir. Incluir playlist e loop. **Feito de outro jeito (2026-11-16):** quadro a quadro não dá (13 s por quadro), então as animações usam a rolagem nativa (`MODE 03`): 50 cenas de Natal + 50 de Ano Novo (`web/js/colecoes.js`), mais 20 desenhos de Natal na galeria. Playlist ainda não.
+  - 2026-11-18: aba **Animações** com animações quadro a quadro tocadas ao vivo (só os LEDs que mudam, 17 ms por LED): 40 de Natal com movimento (`web/js/natal-movimento.js`) + as 3 guardadas na cortina (`ANIM`). Falta o teste na cortina e a playlist.
 - [ ] 5.2 Texto rolando, se a taxa permitir.
 - [ ] 5.3 Descobrir comandos nativos de cortina do app oficial por captura de tráfego (ver `PROTOCOLO.md` §7). Documentar antes de usar.
 - [ ] 5.4 Atalhos: link direto para um desenho ou efeito, para usar com o app Atalhos do iPhone.

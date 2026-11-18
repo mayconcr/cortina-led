@@ -3,7 +3,7 @@
 //   node ferramentas/previa_animacao.mjs web/js/natal-movimento.js ANIMACOES_MOVIMENTO saida.png [--max 12] [--ids a,b]
 //
 // Imprime, para cada animação: quadros, LEDs que mudam por quadro (máximo e média) e quadros/s na cortina
-// (cada LED que muda custa ~32 ms pelo Bluetooth).
+// (cada LED que muda custa ~19 ms pelo Bluetooth).
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -65,7 +65,7 @@ lista.forEach((anim, k) => {
     return;
   }
   const r = resumoAnimacao(quadros, anim.ms);
-  const aviso = r.maxMudancas > 14 ? "  ⚠ muitos LEDs mudando" : "";
+  const aviso = r.maxMudancas > 20 || r.mediaMudancas > 12 ? "  ⚠ muitos LEDs mudando" : "";
   console.log(
     `${k + 1}. ${anim.id} — ${quadros.length} quadros, muda até ${r.maxMudancas} (média ${r.mediaMudancas.toFixed(1)}) LEDs/quadro, ` +
       `${r.quadrosPorSegundo.toFixed(1)} quadros/s na cortina, 1º quadro ${r.ledsPrimeiroQuadro} LEDs${aviso}`,
