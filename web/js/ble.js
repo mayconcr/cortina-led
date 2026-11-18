@@ -21,6 +21,7 @@ export const UUID = Object.freeze({
   AE02: curto(0xae02),
 });
 export const PAUSA_MS = 30; // CLAUDE.md regra 6: pelo menos 30 ms entre escritas
+export const PAUSA_ANIMACAO_MS = 17; // exceção da regra 6 só para animações (ritmo do app oficial; usuário, 18/11)
 const ESPERA_AUTH_MS = 4000;
 const TENTATIVAS_RECONEXAO = 3;
 
@@ -252,12 +253,12 @@ export class Cortina extends EventTarget {
     return resultado;
   }
 
-  async _escrever(caracteristica, dados, comResposta) {
+  async _escrever(caracteristica, dados, comResposta, pausa = PAUSA_MS) {
     if (!caracteristica || !this.dispositivo?.gatt.connected) throw new Error("a cortina está desconectada");
     if (comResposta && caracteristica.writeValueWithResponse) await caracteristica.writeValueWithResponse(dados);
     else if (!comResposta && caracteristica.writeValueWithoutResponse) await caracteristica.writeValueWithoutResponse(dados);
     else await caracteristica.writeValue(dados);
-    await dormir(PAUSA_MS);
+    await dormir(pausa);
   }
 
   /** Comando na CMD: cifrado com AES, escrita com resposta (o que foi confirmado na cortina). */
@@ -363,7 +364,7 @@ export class Cortina extends EventTarget {
    *   SMVEW 01 + SMVEW 02 (entra no modo desenho, como o "apagar") → SMVEW 01 → o 1º quadro inteiro
    *   (aparece aos poucos) → em loop, SÓ os LEDs que mudam (apagar = pixel preto 05 LL CC 00 00 00),
    *   sem fechar → SMVEW 02 ao parar (pararAnimacao() ou qualquer outro comando).
-   * Cada quadro dura pelo menos `ms` (mais, se tiver muitos LEDs para trocar: ~32 ms por LED).
+   * Cada quadro dura pelo menos `ms` (mais, se tiver muitos LEDs para trocar: ~19 ms por LED, com a pausa de 17 ms).
    * `aoQuadro(i)` avisa quando o quadro i terminou de aparecer.
    */
   tocarQuadros(quadros, { ms = 200, brilho = P.BRILHO_MAX, aoQuadro, rotulo = "animação" } = {}) {
@@ -386,7 +387,7 @@ export class Cortina extends EventTarget {
             for (const [col, lin, cor] of diferencas(atual, quadros[i])) {
               if (controle.signal.aborted) break;
               const [r, g, b] = cor || [0, 0, 0];
-              await this._escrever(this.c.pix, cifrar(P.pixel(col, lin, r, g, b, brilho)), this.pixComResposta);
+              await this._escrever(this.c.pix, cifrar(P.pixel(col, lin, r, g, b, brilho)), this.pixComResposta, PAUSA_ANIMACAO_MS);
               trocas++;
             }
             if (controle.signal.aborted) break;

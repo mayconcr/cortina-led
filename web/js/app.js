@@ -20,7 +20,7 @@ import {
   VELOCIDADE_PADRAO,
 } from "./protocol.js";
 import { Animador, Reprodutor, desenharGrade } from "./tela.js";
-import { brilhoSeguroAnimacao, duracoes, resumoAnimacao } from "./animacao.js";
+import { MS_POR_LED_ANIMACAO, brilhoSeguroAnimacao, duracoes, resumoAnimacao } from "./animacao.js";
 import { ANIMACOES_MOVIMENTO } from "./natal-movimento.js";
 import { $, $$, abrirFolha, avisar, confirmar, el, fecharFolha, iniciarFolha, interruptor, pedirTexto, slider } from "./ui.js";
 
@@ -684,7 +684,7 @@ function renderMovimento() {
   );
   $("#controle-brilho-nativas .controle").style.marginTop = "0";
   $("#nota-ao-vivo").textContent =
-    "Prévia no ritmo da cortina. Lá, o 1º quadro aparece aos poucos (uns 3 s) e depois só os LEDs que mudam são trocados.";
+    "Prévia no ritmo da cortina. Lá, o 1º quadro aparece aos poucos (uns 2 s) e depois só os LEDs que mudam são trocados.";
   $("#lista-movimento").replaceChildren(
     ...ANIMACOES_MOVIMENTO.map((item) => {
       const qs = item.criar();
@@ -705,7 +705,7 @@ function renderMovimento() {
 function abrirMovimento(item, qs, dur, r) {
   const canvas = el("canvas", { class: "painel-led", "aria-label": `Prévia: ${item.nome}` });
   reprodutor.adicionar(canvas, qs, dur);
-  const comeco = Math.max(1, Math.round((r.ledsPrimeiroQuadro * G.MS_POR_PIXEL) / 1000));
+  const comeco = Math.max(1, Math.round((r.ledsPrimeiroQuadro * MS_POR_LED_ANIMACAO) / 1000));
   const info = el(
     "p",
     { class: "nota" },

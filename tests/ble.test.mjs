@@ -280,3 +280,23 @@ test("animação na cortina: entra no modo desenho, 1º quadro inteiro, depois s
   assert.deepEqual(mostrados.slice(0, 4), [0, 1, 0, 1]);
   cortina.desconectar();
 });
+
+test("animação: pixels com 17 ms entre escritas (exceção da regra 6); comandos continuam com 30 ms", async () => {
+  const { cortina, falsa } = await conectada();
+  const q0 = Array.from({ length: 20 }, () => Array(20).fill(null));
+  const q1 = Array.from({ length: 20 }, () => Array(20).fill(null));
+  for (let c = 0; c < 10; c++) q0[2][c] = [255, 0, 0];
+  for (let c = 0; c < 10; c++) q1[3][c] = [0, 255, 0];
+  const mostrados = [];
+  const antes = falsa.escritas.length;
+  const fim = cortina.tocarQuadros([q0, q1], { ms: 20, brilho: 40, aoQuadro: (i) => mostrados.push(i) });
+  for (let i = 0; i < 200 && mostrados.length < 3; i++) await dormir(20);
+  cortina.pararAnimacao();
+  await fim;
+  const pix = falsa.escritas.slice(antes).filter((e) => e.uuid === UUID.PIX).map((e) => e.t);
+  const intervalos = pix.slice(1).map((t, i) => t - pix[i]);
+  assert.ok(intervalos.length > 20);
+  assert.ok(Math.min(...intervalos) >= 16, `menor intervalo ${Math.min(...intervalos).toFixed(1)} ms`);
+  assert.ok(intervalos.filter((d) => d < 29).length > intervalos.length / 2, "a maioria mais rápida que 30 ms");
+  cortina.desconectar();
+});
