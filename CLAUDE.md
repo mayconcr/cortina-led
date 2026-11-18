@@ -28,6 +28,7 @@ O autor da engenharia reversa queimou um controlador ao mandar bytes inválidos.
 5. Limite de brilho: cor sólida em 5 bits (valor >> 3), como o app original. Em desenho e pixels, use brilho máximo padrão de **40%** e nunca acenda os 400 LEDs em branco total, porque a fonte é 5V/USB.
    - Exceção decidida pelo usuário em 2026-11-16: o brilho dos **efeitos** (`LIGHT`) vai até 100 % (testado a 60, 80 e 100 % sem problema). Cor sólida e desenho continuam com o limite acima.
 6. Escritas Bluetooth em **fila**, uma por vez, com pausa de pelo menos 30 ms entre elas.
+   - Exceção decidida pelo usuário em 2026-11-18: nas **animações** (pixels ao vivo), pausa de **17 ms**, o ritmo medido do app oficial (captura de 16/11). Comandos e desenhos parados continuam com 30 ms.
 7. Feche o app iDeal LED no celular antes de conectar. O controlador aceita uma conexão por vez.
 
 ## Como trabalhar
