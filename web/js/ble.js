@@ -299,20 +299,10 @@ export class Cortina extends EventTarget {
   }
 
   /**
-   * Tira a cortina do modo desenho sem acender nada: LEDON + cor sólida preta (COLO 00 00 00).
-   * Regra observada em 2026-11-18: fora do modo desenho, o SMVEW 01 desenha ESCONDIDO e o SMVEW 02 mostra
-   * tudo pronto, de uma vez; já dentro do modo desenho, o SMVEW 01 apaga a tela, os pixels aparecem um a um
-   * e o SMVEW 02 troca para uma tela estranha. Por isso todo desenho começa por aqui.
-   */
-  async _sairDoModoDesenho() {
-    await this._cmd(P.ledon());
-    await this._cmd(P.colo8(0, 0, 0, 0));
-  }
-
-  /**
-   * Desenha um quadro 20×20: sai do modo desenho → SMVEW 01 → um pacote por pixel aceso na …960B
-   * (escondidos) → SMVEW 02 (o desenho aparece pronto), e MODE 03 se `rolar` (+ SPEED se `velocidade`).
-   * `aoProgresso(feitos, total)`; `sinal` (AbortSignal) interrompe os pixels, mas o SMVEW 02 sempre sai.
+   * Desenha um quadro 20×20: SMVEW 01 (apaga o anterior) → um pacote por pixel aceso na …960B → SMVEW 02,
+   * e MODE 03 se `rolar` (+ SPEED se `velocidade`, como o app oficial faz depois de MODE 03 na animação
+   * nativa). `aoProgresso(feitos, total)`; `sinal` (AbortSignal) interrompe os pixels,
+   * mas o SMVEW 02 é sempre enviado para fechar o desenho.
    */
   desenhar(grade, { brilho = P.BRILHO_MAX, rolar = false, velocidade = null, aoProgresso, sinal } = {}) {
     this._exigirConexao();
@@ -323,7 +313,6 @@ export class Cortina extends EventTarget {
     if (rolar && velocidade !== null) fechar.push(P.speed(velocidade));
     return this._enfileirar(async () => {
       const inicio = performance.now();
-      await this._sairDoModoDesenho();
       await this._cmd(P.smvew(1));
       let feitos = 0;
       try {
@@ -347,9 +336,9 @@ export class Cortina extends EventTarget {
     return this._comandos(`Velocidade ${v}`, [P.speed(v)]);
   }
 
-  /** Apaga: LEDON + cor preta (sai do modo desenho com tudo apagado). */
+  /** Apaga o desenho: SMVEW 01 + SMVEW 02, sem pixels (confirmado na Fase 3). */
   apagar() {
-    return this._comandos("Apagar", [P.ledon(), P.colo8(0, 0, 0, 0)]);
+    return this._comandos("Apagar desenho", [P.smvew(1), P.smvew(2)]);
   }
 
   // ---------- animações ----------
@@ -363,55 +352,53 @@ export class Cortina extends EventTarget {
     return !!this._animacao;
   }
 
-  /** Para a animação que estiver tocando (fica o último quadro na cortina). */
+  /** Para a animação que estiver tocando (o desenho é fechado com SMVEW 02 e fica o último quadro). */
   pararAnimacao() {
     if (this._animacao) this._animacao.abort();
   }
 
   /**
-   * Toca uma animação nossa na cortina, em loop, do jeito que o trenó funcionou perfeito (18/11):
-   *   sai do modo desenho (LEDON + cor preta) → SMVEW 01 → 1º quadro (escondido) → SMVEW 02 (aparece pronto)
-   *   → em loop, SÓ os LEDs que mudam (apagar = pixel preto 05 LL CC 00 00 00), SEM NUNCA mais mandar SMVEW.
+   * Toca uma animação nossa na cortina, em loop. Com a cortina no modo desenho, os pixels aparecem NA HORA
+   * (observado em 2026-11-18) e o SMVEW 01 apaga a tela. Então:
+   *   SMVEW 01 + SMVEW 02 (entra no modo desenho, como o "apagar") → SMVEW 01 → o 1º quadro inteiro
+   *   (aparece aos poucos) → em loop, SÓ os LEDs que mudam (apagar = pixel preto 05 LL CC 00 00 00),
+   *   sem fechar → SMVEW 02 ao parar (pararAnimacao() ou qualquer outro comando).
    * Cada quadro dura pelo menos `ms` (mais, se tiver muitos LEDs para trocar: ~32 ms por LED).
-   * Para com pararAnimacao() ou qualquer outro comando. `aoQuadro(i)` avisa quando o quadro i apareceu.
+   * `aoQuadro(i)` avisa quando o quadro i terminou de aparecer.
    */
   tocarQuadros(quadros, { ms = 200, brilho = P.BRILHO_MAX, aoQuadro, rotulo = "animação" } = {}) {
     this._exigirConexao();
-    const primeiro = P.quadro(quadros[0], brilho); // valida tudo antes de começar
-    quadros.forEach((q) => P.quadro(q, brilho));
+    quadros.forEach((q) => P.quadro(q, brilho)); // valida tudo antes de começar
     this.pararAnimacao();
     const controle = new AbortController();
     this._animacao = controle;
     this._emitir("animacao", { tocando: true, rotulo });
     return this._enfileirar(async () => {
+      let atual = null;
       let trocas = 0;
+      await this._cmd(P.smvew(1));
+      await this._cmd(P.smvew(2));
+      await this._cmd(P.smvew(1));
       try {
-        await this._sairDoModoDesenho();
-        await this._cmd(P.smvew(1));
-        for (const pk of primeiro) {
-          if (controle.signal.aborted) return;
-          await this._escrever(this.c.pix, cifrar(pk), this.pixComResposta);
-        }
-        await this._cmd(P.smvew(2));
-        let atual = quadros[0];
-        aoQuadro?.(0);
-        await dormir(ms);
-        for (let i = 1 % quadros.length; !controle.signal.aborted; i = (i + 1) % quadros.length) {
-          const inicio = performance.now();
-          for (const [col, lin, cor] of diferencas(atual, quadros[i])) {
+        while (!controle.signal.aborted) {
+          for (let i = 0; i < quadros.length && !controle.signal.aborted; i++) {
+            const inicio = performance.now();
+            for (const [col, lin, cor] of diferencas(atual, quadros[i])) {
+              if (controle.signal.aborted) break;
+              const [r, g, b] = cor || [0, 0, 0];
+              await this._escrever(this.c.pix, cifrar(P.pixel(col, lin, r, g, b, brilho)), this.pixComResposta);
+              trocas++;
+            }
             if (controle.signal.aborted) break;
-            const [r, g, b] = cor || [0, 0, 0];
-            await this._escrever(this.c.pix, cifrar(P.pixel(col, lin, r, g, b, brilho)), this.pixComResposta);
-            trocas++;
+            atual = quadros[i];
+            aoQuadro?.(i);
+            const falta = ms - (performance.now() - inicio);
+            if (falta > 0) await dormir(falta);
           }
-          if (controle.signal.aborted) break;
-          atual = quadros[i];
-          aoQuadro?.(i);
-          const falta = ms - (performance.now() - inicio);
-          if (falta > 0) await dormir(falta);
         }
       } finally {
         if (this._animacao === controle) this._animacao = null;
+        if (this.dispositivo?.gatt.connected) await this._cmd(P.smvew(2));
         this._emitir("animacao", { tocando: false, rotulo });
         this.log(`→ Animação ${rotulo} parada (${trocas} LEDs trocados)`);
       }

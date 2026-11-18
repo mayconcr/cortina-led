@@ -684,7 +684,7 @@ function renderMovimento() {
   );
   $("#controle-brilho-nativas .controle").style.marginTop = "0";
   $("#nota-ao-vivo").textContent =
-    "Prévia no ritmo da cortina. Lá, o desenho carrega escondido por uns segundos, aparece pronto e depois só os LEDs que mudam são trocados.";
+    "Prévia no ritmo da cortina. Lá, o 1º quadro aparece aos poucos (uns 3 s) e depois só os LEDs que mudam são trocados.";
   $("#lista-movimento").replaceChildren(
     ...ANIMACOES_MOVIMENTO.map((item) => {
       const qs = item.criar();
@@ -709,7 +709,7 @@ function abrirMovimento(item, qs, dur, r) {
   const info = el(
     "p",
     { class: "nota" },
-    `Na cortina, o desenho carrega escondido (~${comeco} s) e aparece pronto. Depois, só os LEDs que mudam: ` +
+    `Na cortina, o 1º quadro aparece aos poucos (~${comeco} s). Depois, só os LEDs que mudam: ` +
       `${virgula(r.quadrosPorSegundo)} quadros/s, até ${r.maxMudancas} LEDs por quadro.`,
   );
   const tocar = el(
