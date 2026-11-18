@@ -253,7 +253,7 @@ test("animação da cortina: ANIM + LIGHT, só números testados", async () => {
   cortina.desconectar();
 });
 
-test("animação ao vivo: quadro inteiro, depois só o que muda (preto apaga), e fecha com SMVEW 02 ao parar", async () => {
+test("animação na cortina: cada quadro redesenhado inteiro (SMVEW 01, LEDs acesos, SMVEW 02) até parar", async () => {
   const { cortina, falsa } = await conectada();
   const q0 = Array.from({ length: 20 }, () => Array(20).fill(null));
   const q1 = Array.from({ length: 20 }, () => Array(20).fill(null));
@@ -263,26 +263,22 @@ test("animação ao vivo: quadro inteiro, depois só o que muda (preto apaga), e
   q1[6][7] = [0, 0, 255];
   const mostrados = [];
   const antes = falsa.escritas.length;
-  const fim = cortina.tocarQuadros([q0, q1], { ms: 40, brilho: 40, aoQuadro: (i) => mostrados.push(i) });
+  const fim = cortina.tocarQuadros([q0, q1], { brilho: 40, aoQuadro: (i) => mostrados.push(i) });
   assert.ok(cortina.tocandoAnimacao);
-  for (let i = 0; i < 80 && mostrados.length < 4; i++) await dormir(20);
-  await cortina.ligar(); // outro comando para a animação
+  for (let i = 0; i < 100 && mostrados.length < 3; i++) await dormir(20);
+  await cortina.ligar(); // qualquer outro comando para a animação
   await fim;
   assert.ok(!cortina.tocandoAnimacao);
-  const novas = falsa.escritas.slice(antes).map((e) => ({ uuid: e.uuid, pk: decifrar(e.dados) }));
-  assert.equal(texto(novas[0].pk).slice(0, 5), "SMVEW");
-  const pix = novas.filter((e) => e.uuid === UUID.PIX).map((e) => Array.from(e.pk.slice(0, 6)));
-  // 1º quadro: 2 LEDs acesos; para o 2º: apaga (3,4), acende (6,7); de volta ao 1º: acende (3,4), apaga (6,7)
-  assert.deepEqual(pix.slice(0, 6), [
-    [5, 3, 4, 0, 102, 0],
-    [5, 5, 5, 102, 0, 0],
-    [5, 3, 4, 0, 0, 0],
-    [5, 6, 7, 0, 0, 102],
-    [5, 3, 4, 0, 102, 0],
-    [5, 6, 7, 0, 0, 0],
-  ]);
-  const cmdsFim = novas.filter((e) => e.uuid === UUID.CMD).map((e) => texto(e.pk).slice(0, 5));
-  assert.deepEqual(cmdsFim.slice(-2), ["SMVEW", "LEDON"], "fecha o desenho antes do próximo comando");
-  assert.deepEqual(mostrados.slice(0, 4), [0, 1, 0, 1]);
+  const seq = falsa.escritas.slice(antes).map((e) => {
+    const pk = decifrar(e.dados);
+    return e.uuid === UUID.PIX ? `P${pk[1]},${pk[2]}` : `${texto(pk).slice(0, 5)}${pk[0] === 6 && texto(pk).startsWith("SMVEW") ? pk[6] : ""}`;
+  });
+  assert.deepEqual(seq.slice(0, 12), ["SMVEW1", "P3,4", "P5,5", "SMVEW2", "SMVEW1", "P5,5", "P6,7", "SMVEW2", "SMVEW1", "P3,4", "P5,5", "SMVEW2"]);
+  assert.equal(seq.at(-1), "LEDON");
+  for (const e of falsa.escritas.slice(antes).filter((x) => x.uuid === UUID.PIX)) {
+    const pk = decifrar(e.dados);
+    assert.ok(pk[3] + pk[4] + pk[5] > 0, "nunca manda pixel preto");
+  }
+  assert.deepEqual(mostrados.slice(0, 3), [0, 1, 0]);
   cortina.desconectar();
 });
