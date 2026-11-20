@@ -10,7 +10,8 @@ Comandos:
     versao                      VE 00 e VE 01 (a resposta chega por NOTIFY)
     roteiro PASSO [PASSO ...]   comandos reais desta cortina (PROTOCOLO §5bis), em ordem:
                                 ver · leds[:N] · ledoff · ledon · hora · cor:R,G,B[,brilho] · efeito:N[,brilho,vel]
-                                imag:I · mode[:M] · smvew:1|2 · pixel:X,Y,R,G,B[,brilho]
+                                imag:I · mode[:M] (1–6) · speed:V (0–100) · anim:N[,brilho] · pausa:S
+                                smvew:1|2 · pixel:X,Y,R,G,B[,brilho]
 
 Opções:
     --tipo REAL|TYPE1|TYPE2  REAL (padrão) = protocolo confirmado nesta cortina; os outros são do kit original
@@ -195,6 +196,8 @@ def passo(token: str) -> list[Escrita]:
                 Escrita(CMD, p.light_brilho(args[1] if len(args) > 1 else 50), "LIGHT (brilho)"), Escrita(CMD, p.speed(8), "SPEED")]
     if nome == "mode":
         return [Escrita(CMD, p.mode(*(args or [3])), f"MODE {args[0] if args else 3:02X}")]
+    if nome == "speed":
+        return [Escrita(CMD, p.speed(args[0]), f"SPEED {args[0]:02X} ({args[0]} de 0 a 100)")]
     if nome == "smvew":
         return [Escrita(CMD, p.smvew(args[0]), f"SMVEW {args[0]:02X}")]
     if nome == "pixel":
@@ -205,7 +208,7 @@ def passo(token: str) -> list[Escrita]:
         r, g, b = args[:3] if args else (0, 255, 0)
         brilho = args[3] if len(args) > 3 else p.BRILHO_MAX_DESENHO
         return [Escrita(PIX, p.pixel(c, l, r, g, b, brilho), f"borda col {c} lin {l}") for c, l in p.borda()]
-    raise SystemExit(f"passo desconhecido: {token!r} (use ver, leds, ledoff, ledon, hora, auth, pausa:S, cor:R,G,B, efeito:N, imag:I, mode, smvew:1|2, pixel:LIN,COL,R,G,B, borda:R,G,B)")
+    raise SystemExit(f"passo desconhecido: {token!r} (use ver, leds, ledoff, ledon, hora, auth, pausa:S, cor:R,G,B, efeito:N, anim:N, imag:I, mode:M, speed:V, smvew:1|2, pixel:LIN,COL,R,G,B, borda:R,G,B)")
 
 
 def mostrar(fila: list[Escrita]) -> None:

@@ -143,7 +143,7 @@ def light_brilho(brilho: int = 50) -> bytes:
 
 
 def speed(v: int = 8) -> bytes:
-    """06 'SPEED' SP — velocidade (o app manda 08)."""
+    """06 'SPEED' SP — velocidade de 0 a 100 (o controle do app oficial vai de 00 a 64; captura de 2026-11-20)."""
     _porcento(v, "velocidade")
     return completar(b"\x06SPEED" + bytes([v]))
 
@@ -154,9 +154,13 @@ def imag(indice: int) -> bytes:
     return completar(b"\x05IMAG" + bytes([indice]))
 
 
-# Animações guardadas no controlador (PROTOCOLO §5quater). Só os números vistos na captura do app oficial
-# de 2026-11-17; outros números exigem nova captura (CLAUDE.md, regra 1: nada de varrer valores).
-ANIM_CONHECIDAS = (0x31, 0x0E, 0x1E)
+# Animações guardadas no controlador (PROTOCOLO §5quater e §5quinquies). Só os 58 números que o app oficial mandou
+# na captura de 2026-11-20 (galeria inteira), liberados pelo usuário no mesmo dia. Não apareceram: 00, 10, 3A–3E,
+# 40 — ficam bloqueados (CLAUDE.md, regra 1: nada de varrer valores).
+ANIM_CONHECIDAS = tuple(range(0x01, 0x10)) + tuple(range(0x11, 0x3A)) + (0x3F, 0x41)
+
+# Modos de movimento (MODE): o botão do app oficial dá a volta de 01 a 06 (capturas de 17 e 20/11).
+MODOS_VISTOS = (1, 2, 3, 4, 5, 6)
 
 
 def anim(numero: int) -> bytes:
@@ -167,8 +171,9 @@ def anim(numero: int) -> bytes:
 
 
 def mode(m: int = 3) -> bytes:
-    """05 'MODE' MM — o app manda MODE 03 depois de IMAG e depois do desenho."""
-    _canal(m, "modo")
+    """05 'MODE' MM — movimento do desenho/imagem; 03 = rola para a esquerda. Só 01 a 06 (vistos no app oficial)."""
+    if m not in MODOS_VISTOS:
+        raise ValueError(f"MODE {m!r} não foi visto no app oficial; só 1 a 6")
     return completar(b"\x05MODE" + bytes([m]))
 
 

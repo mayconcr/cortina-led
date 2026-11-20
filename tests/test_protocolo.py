@@ -172,10 +172,31 @@ class TestAnim(unittest.TestCase):
         self.assertEqual(p.anim(0x31)[5], 0x31)
         self.assertEqual(p.anim(0x0E)[5], 0x0E)
 
+    def test_galeria_da_captura_de_20_11(self):
+        self.assertEqual(len(p.ANIM_CONHECIDAS), 58)
+        for n in (0x01, 0x0F, 0x11, 0x1A, 0x39, 0x3F, 0x41):
+            self.assertEqual(p.anim(n)[:6], hx(f"05 41 4E 49 4D {n:02X}"))
+
     def test_recusa_numeros_nao_vistos(self):
-        for n in (0, 1, 0x0F, 0x1A, 0x32, 255, -1):
+        for n in (0, 0x10, 0x3A, 0x3E, 0x40, 0x42, 255, -1):
             with self.assertRaises(ValueError):
                 p.anim(n)
+
+
+class TestModoVelocidade(unittest.TestCase):
+    def test_modos_1_a_6(self):
+        for m in range(1, 7):
+            self.assertEqual(p.mode(m)[:6], hx(f"05 4D 4F 44 45 {m:02X}"))
+        for m in (0, 7, 255, -1):
+            with self.assertRaises(ValueError):
+                p.mode(m)
+
+    def test_velocidade_0_a_100(self):
+        self.assertEqual(p.speed(0)[:7], hx("06 53 50 45 45 44 00"))
+        self.assertEqual(p.speed(100)[:7], hx("06 53 50 45 45 44 64"))
+        for v in (101, 255, -1):
+            with self.assertRaises(ValueError):
+                p.speed(v)
 
 
 class TestSeguranca(unittest.TestCase):
