@@ -74,7 +74,7 @@ const estado = {
   filtroAnimacoes: ler("filtroAnimacoes", "natal"),
   brilhoNativo: entre(ler("brilhoNativo", BRILHO_MAX), BRILHO_EFEITO_MIN, BRILHO_EFEITO_MAX, BRILHO_MAX),
   nomesNativas: ler("nomesNativas", {}),
-  filtroMovimento: ler("filtroMovimento", "cortina") === "ao-vivo" ? "ao-vivo" : "cortina",
+  filtroMovimento: ler("filtroMovimento", "ao-vivo") === "cortina" ? "cortina" : "ao-vivo",
   modoCriar: ler("modoCriar", "desenhar"),
   texto: { texto: "NOEL", fonte: "grande", alinhamento: "centro", cor: [255, 0, 0], ...ler("texto", {}) },
   imagem: { fonte: null, zoom: 1, x: 0, y: 0, limiar: 30, vivas: true, grade: null },
