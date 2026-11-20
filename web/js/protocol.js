@@ -21,16 +21,31 @@ export const BRILHO_MAX = 40; // % — desenho, efeitos e cor sólida
 export const LIMITE_CANAL = Math.floor((255 * BRILHO_MAX) / 100); // 102
 export const LIMITE_SOMA_COR = Math.floor((3 * 255 * 30) / 100); // 229 = branco a 30 % (testado em 2026-11-16)
 
-// Velocidade dos efeitos (SPEED). O app oficial manda 08. Ver docs/DESCOBERTAS.md sobre os valores liberados.
+// Velocidade (SPEED) de 0 (mais lento) a 100 (mais rápido): o controle do app oficial vai de 00 a 64
+// (captura de 2026-11-20), liberado pelo usuário e confirmado na cortina no mesmo dia.
 export const VELOCIDADE_PADRAO = 8;
-export const VELOCIDADE_MIN = 1;
-export const VELOCIDADE_MAX = 16;
+export const VELOCIDADE_MIN = 0;
+export const VELOCIDADE_MAX = 100;
 export const BRILHO_EFEITO_MIN = 5;
 export const BRILHO_EFEITO_MAX = 100; // LIGHT: o app oficial vai até 100 % (usuário liberou em 2026-11-16)
 
 // Cauda fixa que o app iOS manda depois da hora no TIME (captura de 2026-11-16).
 export const CAUDA_TIME_APP = Object.freeze([0xa5, 0x5a, 0xa5, 0x00, 0x03, 0x02, 0x06]);
 export const MODO_ROLAR = 3; // MODE 03: o desenho rola da direita para a esquerda (confirmado)
+
+// Movimentos do desenho (MODE 01 a 06), todos confirmados na cortina em 2026-11-20 (docs/DESCOBERTAS.md).
+// "Parado" não manda MODE: um desenho novo sem MODE fica parado (confirmado em 2026-11-16).
+export const MOVIMENTOS = Object.freeze([
+  Object.freeze({ id: "parado", nome: "Parado", seta: "■", modo: null }),
+  Object.freeze({ id: "esquerda", nome: "Esquerda", seta: "←", modo: 3 }),
+  Object.freeze({ id: "direita", nome: "Direita", seta: "→", modo: 4 }),
+  Object.freeze({ id: "cima", nome: "Cima", seta: "↑", modo: 5 }),
+  Object.freeze({ id: "baixo", nome: "Baixo", seta: "↓", modo: 6 }),
+  Object.freeze({ id: "piscar", nome: "Piscar", seta: "✦", modo: 2 }),
+]);
+
+/** O movimento com esse id (ou undefined). */
+export const movimento = (id) => MOVIMENTOS.find((m) => m.id === id);
 
 const ascii = (texto) => Array.from(texto, (c) => c.charCodeAt(0));
 
@@ -133,7 +148,7 @@ export function lightBrilho(brilho = BRILHO_MAX) {
   return completar([0x06, ...ascii("LIGHT"), inteiro(brilho, "brilho do efeito", BRILHO_EFEITO_MIN, BRILHO_EFEITO_MAX)]);
 }
 
-/** 06 'SPEED' SP — velocidade dos efeitos (o app manda 08). */
+/** 06 'SPEED' SP — velocidade de 0 (mais lento) a 100 (mais rápido), para efeitos e desenhos que andam. */
 export function speed(v = VELOCIDADE_PADRAO) {
   return completar([0x06, ...ascii("SPEED"), inteiro(v, "velocidade", VELOCIDADE_MIN, VELOCIDADE_MAX)]);
 }
@@ -143,24 +158,41 @@ export function efeito(n, brilho = BRILHO_MAX, velocidade = VELOCIDADE_PADRAO) {
   return [...effApp(n), lightBrilho(brilho), speed(velocidade)];
 }
 
-// ---------- animações guardadas na cortina (PROTOCOLO §5quater) ----------
+// ---------- animações guardadas na cortina (PROTOCOLO §5quater e §5quinquies) ----------
 
-/** Números testados na cortina em 2026-11-17. Outros exigem nova captura (CLAUDE.md, regra 1). */
-export const ANIMACOES_CORTINA = Object.freeze({ 0x0e: "Trenó do Papai Noel", 0x1e: "Cubo girando", 0x31: "Desenho aleatório" });
+// A galeria do app oficial, na ordem em que o usuário tocou nela (captura de 2026-11-20): 58 números,
+// liberados pelo usuário no mesmo dia. Os que não apareceram (00, 10, 3A–3E, 40...) são recusados (regra 1).
+const ORDEM_GALERIA = [
+  ...Array.from({ length: 0x39 - 0x1e + 1 }, (_, i) => 0x1e + i), // 1E–39
+  ...Array.from({ length: 0x0f }, (_, i) => 0x01 + i), // 01–0F
+  ...Array.from({ length: 0x1d - 0x11 + 1 }, (_, i) => 0x11 + i), // 11–1D
+  0x41,
+  0x3f,
+];
+const NOMES_CONHECIDOS = { 0x0e: "Trenó do Papai Noel", 0x1e: "Cubo girando", 0x31: "Desenho aleatório" };
+
+/** [{ numero, nome }] na ordem da galeria do app oficial; nomes ainda não vistos são "Animação N". */
+export const ANIMACOES_CORTINA = Object.freeze(
+  ORDEM_GALERIA.map((numero, i) => Object.freeze({ numero, nome: NOMES_CONHECIDOS[numero] || `Animação ${i + 1}` })),
+);
+const NUMEROS_ANIM = new Set(ORDEM_GALERIA);
+
+/** Nome da animação guardada com esse número (ou undefined). */
+export const nomeAnimacao = (numero) => ANIMACOES_CORTINA.find((a) => a.numero === numero)?.nome;
 
 /** 05 'ANIM' NN — a cortina toca sozinha uma animação guardada nela (o app manda LIGHT logo depois). */
 export function anim(numero) {
-  if (!Number.isInteger(numero) || !(numero in ANIMACOES_CORTINA)) {
-    throw new RangeError(`ANIM ${numero} não foi testado na cortina; só ${Object.keys(ANIMACOES_CORTINA).map((n) => Number(n).toString(16)).join(", ")} (hex)`);
+  if (!Number.isInteger(numero) || !NUMEROS_ANIM.has(numero)) {
+    throw new RangeError(`ANIM ${numero} não está na galeria capturada do app oficial (PROTOCOLO §5quinquies)`);
   }
   return completar([0x05, ...ascii("ANIM"), numero]);
 }
 
 // ---------- desenho (SMVEW + pixels na …960B) ----------
 
-/** 05 'MODE' 03 — só o valor 03 (rolar para a esquerda) foi testado; outros são recusados. */
+/** 05 'MODE' MM — movimento do desenho, de 01 a 06 (ver MOVIMENTOS); outros valores são recusados. */
 export function mode(m = MODO_ROLAR) {
-  inteiro(m, "modo", MODO_ROLAR, MODO_ROLAR);
+  inteiro(m, "modo", 1, 6);
   return completar([0x05, ...ascii("MODE"), m]);
 }
 

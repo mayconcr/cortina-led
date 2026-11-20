@@ -75,8 +75,9 @@ Legenda: `[ ]` pendente · `[x]` concluída · 🛑 checkpoint (pare e espere o 
 ## Fase 5: Extras (escolher com o usuário)
 - [x] 5.1 Animações (sequência de quadros), se a taxa medida na 3.6 permitir. Incluir playlist e loop. **Feito de outro jeito (2026-11-16):** quadro a quadro não dá (13 s por quadro), então as animações usam a rolagem nativa (`MODE 03`): 50 cenas de Natal + 50 de Ano Novo (`web/js/colecoes.js`), mais 20 desenhos de Natal na galeria. Playlist ainda não.
   - 2026-11-18: aba **Animações** com animações quadro a quadro tocadas ao vivo (só os LEDs que mudam, 17 ms por LED): 40 de Natal com movimento (`web/js/natal-movimento.js`) + as 3 guardadas na cortina (`ANIM`). Falta o teste na cortina e a playlist.
+  - 2026-11-20: aba **Animações** dividida em "Guardadas na cortina" (as **58** da galeria do app oficial, com nome editável, tocam sem o celular) e "Natal ao vivo" (as 40). Cenas, Galeria e Criar ganharam os **6 movimentos** (parado, esquerda, direita, cima, baixo, piscar) e a **velocidade de 0 a 100**, que muda na hora com o desenho andando. Falta o teste no app.
 - [ ] 5.2 Texto rolando, se a taxa permitir.
-- [ ] 5.3 Descobrir comandos nativos de cortina do app oficial por captura de tráfego (ver `PROTOCOLO.md` §7). Documentar antes de usar.
+- [x] 5.3 Descobrir comandos nativos de cortina do app oficial por captura de tráfego (ver `PROTOCOLO.md` §7). Documentar antes de usar. **Feito (capturas de 16, 17 e 20/11, `PROTOCOLO.md` §5bis a §5quinquies):** movimentos `MODE 01`–`06`, velocidade `SPEED 0`–`100`, brilho `LIGHT 1`–`100`, 58 animações `ANIM`, a árvore `IMAG 1A` e a transferência `DATS` (texto longo, ainda não usada).
 - [ ] 5.4 Atalhos: link direto para um desenho ou efeito, para usar com o app Atalhos do iPhone.
 
 ## Fase 6 (futuro, opcional): ESP32 + WLED
