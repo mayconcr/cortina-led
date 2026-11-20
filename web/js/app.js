@@ -66,7 +66,6 @@ const estado = {
   brilhoDesenho: entre(ler("brilhoDesenho", BRILHO_MAX), 5, BRILHO_MAX, BRILHO_MAX),
   // movimento dos desenhos (Galeria e Criar); quem usava o antigo "Rolar" ligado começa em "esquerda"
   movimento: movimentoValido(ler("movimento", null), ler("rolar", false) === true ? "esquerda" : "parado"),
-  movimentoCenas: movimentoValido(ler("movimentoCenas", null), "esquerda"),
   velocidadeRolagem: entre(ler("velocidadeRolagem", VELOCIDADE_PADRAO), VELOCIDADE_MIN, VELOCIDADE_MAX, VELOCIDADE_PADRAO),
   movimentoNaCortina: null, // id do movimento do último desenho que ficou na cortina (null = nenhum andando)
   galeria: ler("galeria", []),
@@ -599,7 +598,7 @@ async function enviarGrade(grade, { rotulo = "desenho", movimento = "parado", ve
 
 const animacoesProntas = new Set();
 
-function cardLed(nome, meta, grade, { animado = false, aoTocar }) {
+function cardLed(nome, meta, grade, { animado = false, direcao = "esquerda", aoTocar }) {
   const canvas = el("canvas", { class: "painel-led", "aria-hidden": "true" });
   const card = el(
     "button",
@@ -607,7 +606,7 @@ function cardLed(nome, meta, grade, { animado = false, aoTocar }) {
     canvas,
     el("span", { class: "nome" }, nome, meta ? el("span", { class: "meta" }, meta) : null),
   );
-  if (animado) animador.adicionar(canvas, grade);
+  if (animado) animador.adicionar(canvas, grade, direcao);
   else requestAnimationFrame(() => desenharGrade(canvas, grade));
   return card;
 }
@@ -623,7 +622,7 @@ function renderAnimacoes() {
     ...COLECOES_ANIMACOES[filtro].itens.map((item) => {
       const grade = item.criar();
       const meta = `Envio de ${Math.max(1, Math.round(G.tempoEstimado(grade)))} s`;
-      return cardLed(item.nome, meta, grade, { animado: true, aoTocar: () => abrirAnimacao(item, grade) });
+      return cardLed(item.nome, meta, grade, { animado: true, direcao: movimentoDaCena(item), aoTocar: () => abrirAnimacao(item, grade) });
     }),
   );
   $("#lista-animacoes").append(lista);
@@ -645,9 +644,13 @@ for (const b of $$("#animacoes-filtro button")) {
 }
 renderFiltroAnimacoes();
 
+/** Cada cena foi desenhada para um movimento (as que emendam em cima e embaixo sobem ou descem). */
+const movimentoDaCena = (item) => movimentoValido(item.movimento, "esquerda");
+
 function abrirAnimacao(item, grade) {
   const canvas = el("canvas", { class: "painel-led", "aria-label": `Prévia: ${item.nome}` });
-  animador.adicionar(canvas, grade);
+  let movimento = movimentoDaCena(item);
+  animador.adicionar(canvas, grade, movimento);
   const textoResumo = el("p", { class: "nota" }, resumo(grade));
   const brilho = controleBrilhoDesenho();
   brilho.querySelector("input").addEventListener("input", () => (textoResumo.textContent = resumo(grade)));
@@ -660,9 +663,9 @@ function abrirAnimacao(item, grade) {
       canvas,
       textoResumo,
       brilho,
-      seletorMovimento(estado.movimentoCenas, (v) => {
-        estado.movimentoCenas = v;
-        gravar("movimentoCenas", v);
+      seletorMovimento(movimento, (v) => {
+        movimento = v;
+        animador.mudarDirecao(canvas, v);
       }),
       controleVelocidade(),
       el(
@@ -675,7 +678,7 @@ function abrirAnimacao(item, grade) {
             class: "botao primario",
             onclick: () => {
               fecharFolha();
-              enviarGrade(grade, { rotulo: item.nome, movimento: estado.movimentoCenas, velocidade: estado.velocidadeRolagem });
+              enviarGrade(grade, { rotulo: item.nome, movimento, velocidade: estado.velocidadeRolagem });
             },
           },
           "Mostrar na cortina",
@@ -900,6 +903,7 @@ function abrirDesenho(item, grade) {
   } else {
     acoes.push(el("button", { type: "button", class: "botao tonal", onclick: () => salvarNaGaleria(grade, item.nome) }, "Salvar nos meus"));
   }
+  animador.adicionar(canvas, grade, estado.movimento); // a prévia mostra o movimento escolhido
   abrirFolha(
     el(
       "div",
@@ -908,7 +912,10 @@ function abrirDesenho(item, grade) {
       canvas,
       textoResumo,
       brilho,
-      seletorMovimento(estado.movimento, definirMovimento),
+      seletorMovimento(estado.movimento, (v) => {
+        definirMovimento(v);
+        animador.mudarDirecao(canvas, v);
+      }),
       controleVelocidade(),
       el(
         "div",
@@ -928,8 +935,8 @@ function abrirDesenho(item, grade) {
       ),
       el("div", { class: "par-botoes" }, ...acoes),
     ),
+    { aoFechar: () => animador.remover(canvas) },
   );
-  requestAnimationFrame(() => desenharGrade(canvas, grade));
 }
 
 async function salvarNaGaleria(grade, sugestao) {
