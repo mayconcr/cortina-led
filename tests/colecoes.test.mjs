@@ -37,3 +37,17 @@ test("cada cena é uma grade 20×20, entre 40 e 220 LEDs, dentro do orçamento d
 test("criar() devolve uma grade nova a cada chamada", () => {
   for (const d of animacoes) assert.notEqual(d.criar(), d.criar(), d.id);
 });
+
+test("movimento sugerido de cada cena: esquerda (padrão), direita, cima ou baixo", () => {
+  for (const d of animacoes) {
+    if (d.movimento === undefined) continue;
+    assert.ok(["esquerda", "direita", "cima", "baixo"].includes(d.movimento), `${d.id}: ${d.movimento}`);
+  }
+});
+
+test("nomes únicos em cada coleção", () => {
+  for (const c of Object.values(COLECOES_ANIMACOES)) {
+    const nomes = c.itens.map((d) => d.nome.toLowerCase());
+    assert.equal(new Set(nomes).size, nomes.length, c.nome);
+  }
+});
