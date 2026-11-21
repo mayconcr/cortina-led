@@ -595,6 +595,41 @@ input[type="range"]::-moz-range-thumb {
   font-weight: 600;
 }
 
+/* Movimento do desenho na cortina: 6 botões em 3 colunas (Parado, ←, →, ↑, ↓, Piscar) */
+.movimentos {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.movimentos button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 6px;
+  border: 1px solid var(--linha);
+  border-radius: 12px;
+  background: var(--superficie);
+  color: var(--texto-2);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.movimentos button.ativo {
+  border-color: transparent;
+  background: var(--texto);
+  color: var(--fundo);
+  font-weight: 600;
+}
+
+.movimentos .seta {
+  font-size: 17px;
+  line-height: 1;
+}
+
 textarea,
 .campo-texto {
   width: 100%;

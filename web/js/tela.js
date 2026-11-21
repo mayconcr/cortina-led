@@ -6,10 +6,11 @@ const FUNDO = "#060608";
 const APAGADO = "#18181d";
 
 /**
- * Desenha a grade como bolinhas de LED. `deslocamento` gira as colunas para a esquerda
- * (é assim que a cortina mostra o MODE 03: o desenho anda da direita para a esquerda, em loop).
+ * Desenha a grade como bolinhas de LED. `deslocamento` anda com o desenho em loop na `direcao`
+ * do movimento da cortina (P.MOVIMENTOS): "esquerda" (MODE 03, padrão), "direita", "cima", "baixo",
+ * "parado" ou "piscar" (acende e apaga).
  */
-export function desenharGrade(canvas, grade, { apagadas = true, deslocamento = 0 } = {}) {
+export function desenharGrade(canvas, grade, { apagadas = true, deslocamento = 0, direcao = "esquerda" } = {}) {
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
   const lado = Math.max(1, Math.round((canvas.clientWidth || 200) * dpr));
   if (canvas.width !== lado || canvas.height !== lado) {
@@ -21,10 +22,14 @@ export function desenharGrade(canvas, grade, { apagadas = true, deslocamento = 0
   ctx.fillRect(0, 0, lado, lado);
   const passo = lado / COLUNAS;
   const raio = passo * 0.36;
-  const desloc = ((Math.floor(deslocamento) % COLUNAS) + COLUNAS) % COLUNAS;
+  const d = Math.floor(deslocamento);
+  const dc = direcao === "esquerda" ? d : direcao === "direita" ? -d : 0;
+  const dl = direcao === "cima" ? d : direcao === "baixo" ? -d : 0;
+  const apagado = direcao === "piscar" && Math.floor(d / 3) % 2 === 1;
+  const volta = (v, n) => ((v % n) + n) % n;
   for (let lin = 0; lin < LINHAS; lin++) {
     for (let col = 0; col < COLUNAS; col++) {
-      const c = grade?.[lin]?.[(col + desloc) % COLUNAS];
+      const c = apagado ? null : grade?.[volta(lin + dl, LINHAS)]?.[volta(col + dc, COLUNAS)];
       const x = (col + 0.5) * passo;
       const y = (lin + 0.5) * passo;
       if (acesa(c)) {
@@ -70,11 +75,19 @@ export class Animador {
     requestAnimationFrame(this._quadro);
   }
 
-  adicionar(canvas, grade) {
-    this.itens.set(canvas, grade);
+  adicionar(canvas, grade, direcao = "esquerda") {
+    this.itens.set(canvas, { grade, direcao });
     if (this.observador) this.observador.observe(canvas);
     else this.visiveis.add(canvas);
-    requestAnimationFrame(() => desenharGrade(canvas, grade, { deslocamento: this._deslocamento() }));
+    requestAnimationFrame(() => desenharGrade(canvas, grade, { deslocamento: this._deslocamento(), direcao }));
+  }
+
+  /** Troca a direção do movimento de uma prévia que já está animando. */
+  mudarDirecao(canvas, direcao) {
+    const item = this.itens.get(canvas);
+    if (!item) return;
+    item.direcao = direcao;
+    desenharGrade(canvas, item.grade, { deslocamento: this._deslocamento(), direcao });
   }
 
   remover(canvas) {
@@ -96,7 +109,8 @@ export class Animador {
           this.remover(canvas);
           continue;
         }
-        desenharGrade(canvas, this.itens.get(canvas), { deslocamento: d });
+        const { grade, direcao } = this.itens.get(canvas);
+        desenharGrade(canvas, grade, { deslocamento: d, direcao });
       }
     }
     requestAnimationFrame(this._quadro);

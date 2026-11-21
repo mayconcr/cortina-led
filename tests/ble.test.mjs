@@ -235,9 +235,33 @@ test("rolagem com velocidade: SMVEW 02, MODE 03 e SPEED, nessa ordem (como o app
   assert.equal(fim.at(-1)[6], 4);
   await cortina.velocidade(12);
   assert.equal(decifrar(falsa.escritas.at(-1).dados)[6], 12);
-  assert.throws(() => cortina.velocidade(17), RangeError);
+  assert.throws(() => cortina.velocidade(101), RangeError);
   await cortina.desenhar(grade, { brilho: 40, velocidade: 4 }); // sem rolar, não manda SPEED
   assert.equal(texto(decifrar(falsa.escritas.at(-1).dados)).slice(0, 5), "SMVEW");
+  cortina.desconectar();
+});
+
+test("movimentos: cada direção manda o MODE confirmado na cortina; parado não manda MODE", async () => {
+  const { cortina, falsa } = await conectada();
+  const grade = Array.from({ length: 20 }, () => Array(20).fill(null));
+  grade[5][5] = [0, 255, 0];
+  const ultimos = (n) => falsa.escritas.slice(-n).map((e) => decifrar(e.dados));
+  await cortina.desenhar(grade, { brilho: 40, movimento: "cima", velocidade: 50 });
+  let fim = ultimos(3);
+  assert.deepEqual(fim.map((pk) => texto(pk).slice(0, 5)), ["SMVEW", "MODE.", "SPEED"]);
+  assert.equal(fim[1][5], 5);
+  assert.equal(fim[2][6], 50);
+  await cortina.desenhar(grade, { brilho: 40, movimento: "piscar", velocidade: 8 });
+  assert.equal(ultimos(2)[0][5], 2);
+  await cortina.desenhar(grade, { brilho: 40, movimento: "parado", velocidade: 8 });
+  assert.equal(texto(ultimos(1)[0]).slice(0, 5), "SMVEW");
+  assert.throws(() => cortina.desenhar(grade, { movimento: "voar" }), RangeError);
+  // mudar o movimento sem redesenhar: MODE + SPEED; parado = MODE 01
+  await cortina.mudarMovimento("baixo", 30);
+  fim = ultimos(2);
+  assert.deepEqual([fim[0][5], fim[1][6]], [6, 30]);
+  await cortina.mudarMovimento("parado");
+  assert.deepEqual(Array.from(ultimos(1)[0].slice(0, 6)), [0x05, 0x4d, 0x4f, 0x44, 0x45, 0x01]);
   cortina.desconectar();
 });
 
@@ -249,7 +273,7 @@ test("animação da cortina: ANIM + LIGHT, só números testados", async () => {
   assert.deepEqual(cmdsNovos.map((pk) => texto(pk).slice(0, 4)), ["ANIM", "LIGH"]);
   assert.equal(cmdsNovos[0][5], 0x0e);
   assert.equal(cmdsNovos[1][6], 40);
-  assert.throws(() => cortina.animacaoNativa(0x1a, 40), RangeError);
+  assert.throws(() => cortina.animacaoNativa(0x10, 40), RangeError); // não apareceu na galeria
   cortina.desconectar();
 });
 

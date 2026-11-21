@@ -301,17 +301,20 @@ export class Cortina extends EventTarget {
 
   /**
    * Desenha um quadro 20×20: SMVEW 01 (apaga o anterior) → um pacote por pixel aceso na …960B → SMVEW 02,
-   * e MODE 03 se `rolar` (+ SPEED se `velocidade`, como o app oficial faz depois de MODE 03 na animação
-   * nativa). `aoProgresso(feitos, total)`; `sinal` (AbortSignal) interrompe os pixels,
+   * depois o MODE do `movimento` ("esquerda", "cima"... ver P.MOVIMENTOS; `rolar: true` = "esquerda")
+   * e o SPEED se houver `velocidade`, na ordem do app oficial. "parado" não manda MODE nem SPEED.
+   * `aoProgresso(feitos, total)`; `sinal` (AbortSignal) interrompe os pixels,
    * mas o SMVEW 02 é sempre enviado para fechar o desenho.
    */
-  desenhar(grade, { brilho = P.BRILHO_MAX, rolar = false, velocidade = null, aoProgresso, sinal } = {}) {
+  desenhar(grade, { brilho = P.BRILHO_MAX, movimento = null, rolar = false, velocidade = null, aoProgresso, sinal } = {}) {
     this._exigirConexao();
+    const mov = P.movimento(movimento ?? (rolar ? "esquerda" : "parado"));
+    if (!mov) throw new RangeError(`movimento desconhecido: ${movimento}`);
     const pixels = P.quadro(grade, brilho);
     this.pararAnimacao();
     const fechar = [P.smvew(2)];
-    if (rolar) fechar.push(P.mode(P.MODO_ROLAR));
-    if (rolar && velocidade !== null) fechar.push(P.speed(velocidade));
+    if (mov.modo !== null) fechar.push(P.mode(mov.modo));
+    if (mov.modo !== null && velocidade !== null) fechar.push(P.speed(velocidade));
     return this._enfileirar(async () => {
       const inicio = performance.now();
       await this._cmd(P.smvew(1));
@@ -327,7 +330,7 @@ export class Cortina extends EventTarget {
         if (this.dispositivo?.gatt.connected) for (const pk of fechar) await this._cmd(pk);
       }
       const segundos = (performance.now() - inicio) / 1000;
-      this.log(`→ Desenho: ${feitos} de ${pixels.length} pixels em ${segundos.toFixed(1)} s${rolar ? ", rolando" : ""}`);
+      this.log(`→ Desenho: ${feitos} de ${pixels.length} pixels em ${segundos.toFixed(1)} s${mov.modo !== null ? `, movimento: ${mov.nome}` : ""}`);
       return { feitos, total: pixels.length, segundos, cancelado: feitos < pixels.length };
     });
   }
@@ -335,6 +338,17 @@ export class Cortina extends EventTarget {
   /** Só a velocidade (SPEED), para ajustar a rolagem que já está na cortina. */
   velocidade(v) {
     return this._comandos(`Velocidade ${v}`, [P.speed(v)]);
+  }
+
+  /**
+   * Muda o movimento do desenho que já está na cortina, sem redesenhar: MODE + SPEED, como o app oficial
+   * faz ao trocar de modo com a árvore na tela. "parado" vira MODE 01 (confirmado na cortina em 2026-11-20).
+   */
+  mudarMovimento(movimento, velocidade = P.VELOCIDADE_PADRAO) {
+    const mov = P.movimento(movimento);
+    if (!mov) throw new RangeError(`movimento desconhecido: ${movimento}`);
+    const pacotes = mov.modo === null ? [P.mode(1)] : [P.mode(mov.modo), P.speed(velocidade)];
+    return this._comandos(`Movimento: ${mov.nome}`, pacotes);
   }
 
   /** Apaga o desenho: SMVEW 01 + SMVEW 02, sem pixels (confirmado na Fase 3). */
@@ -346,7 +360,7 @@ export class Cortina extends EventTarget {
 
   /** Toca uma animação guardada na cortina: ANIM NN + LIGHT, como o app oficial (testado em 2026-11-17). */
   animacaoNativa(numero, brilho) {
-    return this._comandos(`Animação da cortina ${P.ANIMACOES_CORTINA[numero] || numero}`, [P.anim(numero), P.lightBrilho(brilho)]);
+    return this._comandos(`Animação da cortina ${P.nomeAnimacao(numero) || numero}`, [P.anim(numero), P.lightBrilho(brilho)]);
   }
 
   get tocandoAnimacao() {

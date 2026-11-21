@@ -72,13 +72,13 @@ test("regra 5: cor sólida sem canal acima de 40 % e sem branco acima de 30 %", 
 });
 
 test("valores fora do que foi testado são recusados", () => {
-  assert.throws(() => P.mode(1));
-  assert.throws(() => P.mode(4));
+  assert.throws(() => P.mode(0));
+  assert.throws(() => P.mode(7));
   assert.throws(() => P.smvew(0));
   assert.throws(() => P.smvew(3));
   assert.throws(() => P.leds(1));
-  assert.throws(() => P.speed(0));
-  assert.throws(() => P.speed(17));
+  assert.throws(() => P.speed(-1));
+  assert.throws(() => P.speed(101));
   assert.throws(() => P.hora(1, 12, 0, 0, [1, 2, 3]));
   assert.throws(() => P.hora(8, 12, 0, 0));
   assert.throws(() => P.pixelXY(20, 0, 255, 0, 0));
@@ -101,8 +101,26 @@ test("quadro ignora pixels apagados e só manda os acesos", () => {
   assert.deepEqual(Array.from(pk[0].slice(0, 6)), [5, 3, 5, 0, 102, 0]); // linha 3, coluna 5, G R B
 });
 
-test("ANIM: só os números testados na cortina (0E trenó, 1E cubo, 31 aleatório)", () => {
+test("ANIM: só os 58 números da galeria capturada em 2026-11-20, na ordem do app oficial", () => {
   assert.equal(P.hexs(P.anim(0x0e)).slice(0, 17), "05 41 4E 49 4D 0E");
-  for (const n of [0, 1, 0x0f, 0x1a, 0x32, 255, -1, 1.5, "14"]) assert.throws(() => P.anim(n), RangeError, `ANIM ${n}`);
-  assert.deepEqual(Object.keys(P.ANIMACOES_CORTINA).map(Number).sort((a, b) => a - b), [0x0e, 0x1e, 0x31]);
+  for (const n of [0x01, 0x0f, 0x11, 0x1a, 0x39, 0x3f, 0x41]) assert.equal(P.anim(n)[5], n);
+  for (const n of [0, 0x10, 0x3a, 0x3e, 0x40, 0x42, 255, -1, 1.5, "14"]) assert.throws(() => P.anim(n), RangeError, `ANIM ${n}`);
+  assert.equal(P.ANIMACOES_CORTINA.length, 58);
+  assert.equal(new Set(P.ANIMACOES_CORTINA.map((a) => a.numero)).size, 58);
+  // a galeria começa no cubo (1E) e termina em 41, 3F, como o usuário tocou
+  assert.deepEqual(P.ANIMACOES_CORTINA.slice(0, 2).map((a) => a.numero), [0x1e, 0x1f]);
+  assert.deepEqual(P.ANIMACOES_CORTINA.slice(-2).map((a) => a.numero), [0x41, 0x3f]);
+  assert.equal(P.nomeAnimacao(0x0e), "Trenó do Papai Noel");
+  assert.equal(P.nomeAnimacao(0x31), "Desenho aleatório");
+  assert.equal(P.nomeAnimacao(0x1e), "Cubo girando");
+});
+
+test("MODE e SPEED: os 6 movimentos e a velocidade de 0 a 100 confirmados na cortina", () => {
+  const modos = Object.fromEntries(P.MOVIMENTOS.map((m) => [m.id, m.modo]));
+  assert.deepEqual(modos, { parado: null, esquerda: 3, direita: 4, cima: 5, baixo: 6, piscar: 2 });
+  for (let m = 1; m <= 6; m++) assert.equal(P.hexs(P.mode(m)).slice(0, 17), `05 4D 4F 44 45 0${m}`);
+  assert.equal(P.movimento("cima").modo, 5);
+  assert.equal(P.movimento("voar"), undefined);
+  assert.equal(P.hexs(P.speed(0)).slice(0, 20), "06 53 50 45 45 44 00");
+  assert.equal(P.hexs(P.speed(100)).slice(0, 20), "06 53 50 45 45 44 64");
 });

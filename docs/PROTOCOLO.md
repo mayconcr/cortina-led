@@ -208,6 +208,30 @@ Também na conexão: o app manda comandos RCSP da JieLi (`FE DC BA C0 …`) no `
 **Como o desenho aparece (confirmado em 2026-11-17):** `SMVEW 01` começa um desenho vazio; os pixels vão para
 uma memória e **nada aparece enquanto eles chegam**; o desenho inteiro aparece **de uma vez no `SMVEW 02`**.
 
+## 5quinquies. Captura de 2026-11-20: modos, brilho, velocidade e galeria **[capturados, ainda NÃO enviados por nós]**
+
+Fonte: `capturas/iphone-2026-11-20.pklg` (fora do git, sysdiagnose das 20:06), decifrada com
+`ferramentas/decifrar_captura.py`. A linha do tempo (segundos desde o `VER`) fica em `capturas/iphone-2026-11-20.tempo.txt`.
+O preâmbulo é o mesmo de sempre (`VER`, `TIME`, `LEDS 00` ×2, handshake JieLi, RCSP no `0xAE01`).
+Cada valor novo abaixo precisa de confirmação do usuário antes do primeiro envio (CLAUDE.md, regra 2).
+
+| Momento | O app oficial mandou | O que mostra |
+|---|---|---|
+| 2,0 s | `LEDOFF`, `LEDON` | Desliga e liga. |
+| 6,0 s | `05 'IMAG' 1A` + `05 'MODE' 05` + `06 'LIGHT' 64` + `06 'SPEED' 5A` | Árvore de Natal: o app manda junto o **modo, o brilho e a velocidade escolhidos** (aqui 05, 100 % e 90). |
+| 8,6 a 14,9 s | Só `06 'LIGHT' BR`, um a cada ~70 ms enquanto o dedo arrasta: `54 4D 3F … 06 01`, depois até `64` | **Brilho de `01` a `64` (1 a 100 %)**. O mínimo é 1, nunca 0. |
+| 15,6 a 21,2 s | Só `06 'SPEED' SP`, um a cada ~70 ms: `52 4B … 04 00`, depois `04 … 64`, depois `59 … 2E` | **Velocidade de `00` a `64` (0 a 100)**, mandada sozinha, sem `MODE`. O nosso app só usa 1 a 16, o que explica "2 e 16 não mudam nada" (16/11). Ainda não se sabe se 100 é o mais rápido ou o mais lento. |
+| 22 a 37 s | Só `05 'MODE' MM`, um por toque (1,4 a 3,4 s entre eles): `06 01 02 03 04 05 06 01` (com `SPEED 4F` no meio) | **O botão de modo dá a volta de 01 a 06**. `03` = rola para a esquerda (confirmado). O usuário contou que o app faz a árvore ir para o lado, para cima, para baixo e ficar parada. **Qual número faz cada movimento ainda não se sabe.** |
+| 40 a 123 s | Para cada toque na galeria: `05 'ANIM' NN` + `06 'LIGHT' 64` (o brilho atual) | **Galeria: 58 números diferentes**, na ordem dos toques: `1E`–`39`; `01`–`0F`; `11`–`1D`; `41`; `3F` (e o `0E` de novo no fim). |
+| 127 s | `LEDOFF` | Desliga. |
+
+**Números de `ANIM` vistos:** `01`–`0F`, `11`–`39`, `3F`, `41` (58 no total). **Não apareceram:** `00`, `10`, `3A`–`3E`, `40`
+(não mandar). Nomes conhecidos: `0E` = trenó do Papai Noel, `1E` = cubo girando, `31` = desenho aleatório (testados em
+2026-11-17). Os nomes dos outros saem da gravação de tela do usuário ou de testar na cortina.
+
+Detalhe: o app completa `MODE`, `LIGHT` e `SPEED` com bytes aleatórios depois do valor, e `ANIM`/`IMAG` com zeros.
+Nós completamos tudo com zeros, e o `MODE 03`, o `LIGHT` e o `SPEED` já funcionaram assim.
+
 ## 6. Comandos TYPE1 (só se a cortina não for TYPE2)
 - Liga: `06 4C 45 44 4F 4E 00 …` ("LEDON") · Desliga: `06 4C 45 44 4F 46 46 00 …` ("LEDOFF")
 - Cor: `07 43 4F 4C 4F Gx Rx Bx 00 …`, com verde no byte 5, vermelho no 6 e azul no 7, em 5 bits (offsets 5/6/7 conferidos no `const.py` da integração HA; N = 07 = 4 letras + 3 parâmetros). Exemplo vermelho: `07 43 4F 4C 4F 00 1F 00 00 …`

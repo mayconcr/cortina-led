@@ -68,17 +68,23 @@
         <p class="nota centro">Toque no lápis para dar um nome a cada efeito.</p>
       </section>
 
-      <!-- ============ Animações (quadro a quadro) ============ -->
+      <!-- ============ Animações: guardadas na cortina e quadro a quadro ao vivo ============ -->
       <section class="aba" id="aba-animacoes" data-titulo="Animações" hidden>
-        <p class="intro">Desenhos que se mexem de verdade: pernas galopando, chamas tremulando, luzes correndo.</p>
-        <h2 class="rotulo-secao">Guardadas na cortina</h2>
-        <div class="lista" id="lista-nativas"></div>
-        <div class="cartao" id="controle-brilho-nativas"></div>
-        <div class="secao-topo">
-          <h2 class="rotulo-secao">Natal com movimento</h2>
+        <div class="chips" id="movimento-filtro" role="tablist" aria-label="Tipos de animação">
+          <button type="button" role="tab" data-valor="ao-vivo">Natal ao vivo</button>
+          <button type="button" role="tab" data-valor="cortina">Guardadas na cortina</button>
         </div>
-        <p class="nota aviso-ao-vivo" id="nota-ao-vivo"></p>
-        <div class="grade-cards" id="lista-movimento"></div>
+        <div id="painel-ao-vivo">
+          <p class="intro">Desenhos que se mexem de verdade: pernas galopando, chamas tremulando, luzes correndo. O celular precisa ficar conectado.</p>
+          <p class="nota aviso-ao-vivo" id="nota-ao-vivo"></p>
+          <div class="grade-cards" id="lista-movimento"></div>
+        </div>
+        <div id="painel-cortina" hidden>
+          <p class="intro">Ficam guardadas na própria cortina e continuam tocando mesmo depois que o celular desconecta.</p>
+          <div class="cartao" id="controle-brilho-nativas"></div>
+          <div class="lista" id="lista-nativas"></div>
+          <p class="nota centro">Os números seguem a galeria do app oficial. Toque no lápis para dar um nome a cada uma.</p>
+        </div>
       </section>
 
       <!-- ============ Cenas (rolagem) ============ -->
@@ -87,7 +93,7 @@
           <button type="button" role="tab" data-valor="natal">Natal</button>
           <button type="button" role="tab" data-valor="ano-novo">Ano Novo</button>
         </div>
-        <p class="intro">Cenas que andam pela cortina, da direita para a esquerda, sem parar.</p>
+        <p class="intro">Cenas que andam pela cortina sem parar, mesmo depois que o celular desconecta. Ao abrir uma, escolha para onde ela anda.</p>
         <div id="lista-animacoes"></div>
       </section>
 

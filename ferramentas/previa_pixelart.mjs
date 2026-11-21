@@ -49,8 +49,11 @@ function png(w, h, rgb) {
 const passo = 11;
 const raio = 4.3;
 const margem = 14;
+// Cenas com `movimento: "cima"` ou `"baixo"` andam na vertical: a repetição (emenda) é mostrada empilhada.
+const vertical = (item) => item.movimento === "cima" || item.movimento === "baixo";
+const temVertical = repetir > 1 && lista.some(vertical);
 const larg = 20 * passo * repetir;
-const alt = 20 * passo;
+const alt = 20 * passo * (temVertical ? repetir : 1);
 const W = colunas * (larg + margem) + margem;
 const H = Math.ceil(lista.length / colunas) * (alt + margem) + margem;
 const img = Buffer.alloc(W * H * 3, 30);
@@ -79,18 +82,21 @@ lista.forEach((item, k) => {
   if (acesos < 40) avisos.push("poucos LEDs (<40)");
   if (acesos > 220) avisos.push("LEDs demais (>220, envio lento)");
   if (avisos.length) problemas++;
-  console.log(`${k + 1}. ${item.id} — ${item.nome} — ${acesos} LEDs${avisos.length ? "  ⚠ " + avisos.join(", ") : ""}`);
+  const mov = item.movimento || "esquerda";
+  console.log(`${k + 1}. ${item.id} — ${item.nome} — ${mov} — ${acesos} LEDs${avisos.length ? "  ⚠ " + avisos.join(", ") : ""}`);
   if (!valida) return;
   const ox = margem + (k % colunas) * (larg + margem);
   const oy = margem + Math.floor(k / colunas) * (alt + margem);
-  for (let y = 0; y < alt; y++) for (let x = 0; x < larg; x++) px(ox + x, oy + y, [5, 6, 8]);
+  const empilhar = vertical(item);
+  const [w, h] = empilhar ? [20 * passo, 20 * passo * repetir] : [20 * passo * repetir, 20 * passo];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) px(ox + x, oy + y, [5, 6, 8]);
   for (let rep = 0; rep < repetir; rep++) {
     for (let lin = 0; lin < 20; lin++) {
       for (let col = 0; col < 20; col++) {
         const c = g[lin][col] || [28, 31, 38];
         const r = g[lin][col] ? raio : raio * 0.6;
-        const cx = ox + (rep * 20 + col + 0.5) * passo;
-        const cy = oy + (lin + 0.5) * passo;
+        const cx = ox + ((empilhar ? 0 : rep * 20) + col + 0.5) * passo;
+        const cy = oy + ((empilhar ? rep * 20 : 0) + lin + 0.5) * passo;
         for (let y = Math.floor(cy - r); y <= cy + r; y++) {
           for (let x = Math.floor(cx - r); x <= cx + r; x++) if ((x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2 <= r * r) px(x, y, c);
         }

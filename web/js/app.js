@@ -15,6 +15,7 @@ import {
   BRILHO_MAX,
   EFEITO_MAX,
   EFEITO_MIN,
+  MOVIMENTOS,
   VELOCIDADE_MAX,
   VELOCIDADE_MIN,
   VELOCIDADE_PADRAO,
@@ -25,6 +26,7 @@ import { ANIMACOES_MOVIMENTO } from "./natal-movimento.js";
 import { $, $$, abrirFolha, avisar, confirmar, el, fecharFolha, iniciarFolha, interruptor, pedirTexto, slider } from "./ui.js";
 
 const entre = (v, min, max, padrao) => (Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : padrao);
+const movimentoValido = (id, padrao) => (MOVIMENTOS.some((m) => m.id === id) ? id : padrao);
 const virgula = (n, casas = 1) => n.toFixed(casas).replace(".", ",");
 
 const CORES = [
@@ -62,13 +64,16 @@ const estado = {
   ferramenta: "pincel",
   corPincel: ler("corPincel", [255, 0, 0]),
   brilhoDesenho: entre(ler("brilhoDesenho", BRILHO_MAX), 5, BRILHO_MAX, BRILHO_MAX),
-  rolar: ler("rolar", false) === true,
+  // movimento dos desenhos (Galeria e Criar); quem usava o antigo "Rolar" ligado começa em "esquerda"
+  movimento: movimentoValido(ler("movimento", null), ler("rolar", false) === true ? "esquerda" : "parado"),
   velocidadeRolagem: entre(ler("velocidadeRolagem", VELOCIDADE_PADRAO), VELOCIDADE_MIN, VELOCIDADE_MAX, VELOCIDADE_PADRAO),
-  rolagemNaCortina: false,
+  movimentoNaCortina: null, // id do movimento do último desenho que ficou na cortina (null = nenhum andando)
   galeria: ler("galeria", []),
   filtroGaleria: ler("filtroGaleria", "natal"),
   filtroAnimacoes: ler("filtroAnimacoes", "natal"),
   brilhoNativo: entre(ler("brilhoNativo", BRILHO_MAX), BRILHO_EFEITO_MIN, BRILHO_EFEITO_MAX, BRILHO_MAX),
+  nomesNativas: ler("nomesNativas", {}),
+  filtroMovimento: ler("filtroMovimento", "ao-vivo") === "cortina" ? "cortina" : "ao-vivo",
   modoCriar: ler("modoCriar", "desenhar"),
   texto: { texto: "NOEL", fonte: "grande", alinhamento: "centro", cor: [255, 0, 0], ...ler("texto", {}) },
   imagem: { fonte: null, zoom: 1, x: 0, y: 0, limiar: 30, vivas: true, grade: null },
@@ -155,7 +160,7 @@ cortina.addEventListener("estado", (e) => {
   $("#conexao").dataset.estado = s;
   $("#conexao-texto").textContent = ROTULOS[s] || s;
   $("#energia-estado").textContent = ESTADO_LONGO[s] || s;
-  if (s !== "conectado") estado.rolagemNaCortina = false;
+  if (s !== "conectado") estado.movimentoNaCortina = null;
   if (mensagem) avisar(mensagem, s === "desconectado" ? "erro" : "info");
   if (s === "reconectando") avisar("A conexão caiu. Reconectando…", "aviso");
   atualizarAjustes();
@@ -314,7 +319,7 @@ function aplicarCor() {
   const brilho = G.brilhoSeguroCor(r, g, b, estado.brilhoCor);
   $("#dica-cor").textContent = brilho < estado.brilhoCor ? `Esta cor vai a no máximo ${brilho}% para proteger a fonte de 5 V.` : "";
   if (brilho <= 0) return;
-  estado.rolagemNaCortina = false;
+  estado.movimentoNaCortina = null;
   executar(() => cortina.cor(r, g, b, brilho));
 }
 
@@ -429,7 +434,7 @@ function renderEfeitos() {
 
 function mostrarEfeito(n) {
   estado.efeitoAtivo = n;
-  estado.rolagemNaCortina = false;
+  estado.movimentoNaCortina = null;
   renderEfeitos();
   executar(() => cortina.efeito(n, estado.brilhoEfeito, VELOCIDADE_PADRAO));
 }
@@ -479,6 +484,52 @@ function controleBrilhoDesenho() {
   return bloco;
 }
 
+/** Seis botões de movimento (Parado, ←, →, ↑, ↓, Piscar), confirmados na cortina em 2026-11-20. */
+function seletorMovimento(valor, aoMudar) {
+  const botoes = MOVIMENTOS.map((m) =>
+    el(
+      "button",
+      { type: "button", "data-valor": m.id, class: m.id === valor ? "ativo" : null, "aria-pressed": String(m.id === valor) },
+      el("span", { class: "seta", "aria-hidden": "true" }, m.seta),
+      m.nome,
+    ),
+  );
+  const grupo = el("div", { class: "movimentos", role: "group", "aria-label": "Movimento na cortina" }, ...botoes);
+  grupo.addEventListener("click", (e) => {
+    const escolhido = e.target.closest("button");
+    if (!escolhido) return;
+    for (const b of botoes) {
+      b.classList.toggle("ativo", b === escolhido);
+      b.setAttribute("aria-pressed", String(b === escolhido));
+    }
+    aoMudar(escolhido.dataset.valor);
+  });
+  return el("div", { class: "controle" }, el("span", { class: "controle-topo" }, el("span", {}, "Movimento na cortina")), grupo);
+}
+
+function definirMovimento(id) {
+  estado.movimento = id;
+  gravar("movimento", id);
+}
+
+/** Velocidade de 0 (devagar) a 100 (rápido). Com um desenho andando na cortina, muda na hora (MODE + SPEED). */
+function controleVelocidade() {
+  return slider({
+    rotulo: "Velocidade",
+    min: VELOCIDADE_MIN,
+    max: VELOCIDADE_MAX,
+    valor: estado.velocidadeRolagem,
+    formato: (v) => (v <= 15 ? `${v} · devagar` : v >= 70 ? `${v} · rápido` : String(v)),
+    aoMudar: (v) => {
+      estado.velocidadeRolagem = v;
+      gravar("velocidadeRolagem", v);
+      if (estado.movimentoNaCortina && cortina.conectada && !estado.envio) {
+        executar(() => cortina.mudarMovimento(estado.movimentoNaCortina, v));
+      }
+    },
+  });
+}
+
 const msPorPixel = () => (cortina.pixComResposta ? G.MS_POR_PIXEL_COM_RESPOSTA : G.MS_POR_PIXEL);
 
 function resumo(grade) {
@@ -501,7 +552,7 @@ function mostrarEnvio(titulo, feitos, total) {
 
 $("#envio-cancelar").addEventListener("click", () => estado.envio?.abort());
 
-async function enviarGrade(grade, { rotulo = "desenho", rolar = false, velocidade = null } = {}) {
+async function enviarGrade(grade, { rotulo = "desenho", movimento = "parado", velocidade = null } = {}) {
   if (estado.envio) {
     avisar("Já tem um desenho sendo enviado.");
     return;
@@ -523,12 +574,12 @@ async function enviarGrade(grade, { rotulo = "desenho", rolar = false, velocidad
   try {
     const r = await cortina.desenhar(grade, {
       brilho,
-      rolar,
-      velocidade: rolar ? velocidade : null,
+      movimento,
+      velocidade: movimento === "parado" ? null : velocidade,
       sinal: controle.signal,
       aoProgresso: (feitos, total) => mostrarEnvio(titulo, feitos, total),
     });
-    estado.rolagemNaCortina = rolar && !r.cancelado;
+    estado.movimentoNaCortina = movimento !== "parado" && !r.cancelado ? movimento : null;
     estado.efeitoAtivo = null;
     if (r.cancelado) avisar(`Envio cancelado (${r.feitos} de ${r.total} LEDs)`, "aviso");
     else avisar(`Pronto! ${r.total} LEDs em ${virgula(r.segundos)} s`, "ok");
@@ -547,7 +598,7 @@ async function enviarGrade(grade, { rotulo = "desenho", rolar = false, velocidad
 
 const animacoesProntas = new Set();
 
-function cardLed(nome, meta, grade, { animado = false, aoTocar }) {
+function cardLed(nome, meta, grade, { animado = false, direcao = "esquerda", aoTocar }) {
   const canvas = el("canvas", { class: "painel-led", "aria-hidden": "true" });
   const card = el(
     "button",
@@ -555,7 +606,7 @@ function cardLed(nome, meta, grade, { animado = false, aoTocar }) {
     canvas,
     el("span", { class: "nome" }, nome, meta ? el("span", { class: "meta" }, meta) : null),
   );
-  if (animado) animador.adicionar(canvas, grade);
+  if (animado) animador.adicionar(canvas, grade, direcao);
   else requestAnimationFrame(() => desenharGrade(canvas, grade));
   return card;
 }
@@ -571,7 +622,7 @@ function renderAnimacoes() {
     ...COLECOES_ANIMACOES[filtro].itens.map((item) => {
       const grade = item.criar();
       const meta = `Envio de ${Math.max(1, Math.round(G.tempoEstimado(grade)))} s`;
-      return cardLed(item.nome, meta, grade, { animado: true, aoTocar: () => abrirAnimacao(item, grade) });
+      return cardLed(item.nome, meta, grade, { animado: true, direcao: movimentoDaCena(item), aoTocar: () => abrirAnimacao(item, grade) });
     }),
   );
   $("#lista-animacoes").append(lista);
@@ -593,34 +644,30 @@ for (const b of $$("#animacoes-filtro button")) {
 }
 renderFiltroAnimacoes();
 
+/** Cada cena foi desenhada para um movimento (as que emendam em cima e embaixo sobem ou descem). */
+const movimentoDaCena = (item) => movimentoValido(item.movimento, "esquerda");
+
 function abrirAnimacao(item, grade) {
   const canvas = el("canvas", { class: "painel-led", "aria-label": `Prévia: ${item.nome}` });
-  animador.adicionar(canvas, grade);
+  let movimento = movimentoDaCena(item);
+  animador.adicionar(canvas, grade, movimento);
   const textoResumo = el("p", { class: "nota" }, resumo(grade));
   const brilho = controleBrilhoDesenho();
   brilho.querySelector("input").addEventListener("input", () => (textoResumo.textContent = resumo(grade)));
-  const velocidade = slider({
-    rotulo: "Velocidade (vale no próximo envio · em teste)",
-    min: VELOCIDADE_MIN,
-    max: VELOCIDADE_MAX,
-    valor: estado.velocidadeRolagem,
-    aoMudar: (v) => {
-      // Mandar SPEED sozinho com a rolagem andando não mudou nada na cortina (2026-11-16):
-      // a velocidade vai junto com o próximo envio (SMVEW 02 → MODE 03 → SPEED), como o app oficial.
-      estado.velocidadeRolagem = v;
-      gravar("velocidadeRolagem", v);
-    },
-  });
   abrirFolha(
     el(
       "div",
       {},
       el("h3", {}, item.nome),
-      el("p", { class: "subtitulo" }, "Anda da direita para a esquerda, sem parar."),
+      el("p", { class: "subtitulo" }, "Anda sem parar, mesmo depois que o celular desconecta."),
       canvas,
       textoResumo,
       brilho,
-      velocidade,
+      seletorMovimento(movimento, (v) => {
+        movimento = v;
+        animador.mudarDirecao(canvas, v);
+      }),
+      controleVelocidade(),
       el(
         "div",
         { class: "par-botoes" },
@@ -631,7 +678,7 @@ function abrirAnimacao(item, grade) {
             class: "botao primario",
             onclick: () => {
               fecharFolha();
-              enviarGrade(grade, { rotulo: item.nome, rolar: true, velocidade: estado.velocidadeRolagem });
+              enviarGrade(grade, { rotulo: item.nome, movimento, velocidade: estado.velocidadeRolagem });
             },
           },
           "Mostrar na cortina",
@@ -647,27 +694,72 @@ function abrirAnimacao(item, grade) {
 //             Animações (quadro a quadro) e as da cortina
 // ============================================================
 
-const ICONE_PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z" /></svg>';
 let movimentoPronto = false;
 
-function renderMovimento() {
-  if (movimentoPronto) return;
-  movimentoPronto = true;
-  // guardadas na cortina: o app só manda o número (ANIM NN) e a cortina toca sozinha, a 10 quadros/s
+const nomeNativa = (a) => estado.nomesNativas[a.numero] || a.nome;
+
+/**
+ * As 58 animações guardadas na cortina, na ordem da galeria do app oficial: o app só manda o número
+ * (ANIM NN) e a cortina toca sozinha, mesmo depois que o celular desconecta.
+ */
+function renderNativas() {
   $("#lista-nativas").replaceChildren(
-    ...Object.entries(ANIMACOES_CORTINA).map(([numero, nome]) =>
+    ...ANIMACOES_CORTINA.map((a, i) =>
       el(
         "div",
         { class: "item-lista" },
         el(
           "button",
-          { type: "button", class: "principal", onclick: () => executar(() => cortina.animacaoNativa(Number(numero), estado.brilhoNativo), `${nome} na cortina`) },
-          el("span", { class: "num", html: ICONE_PLAY }),
-          el("span", { class: "nome" }, nome),
+          { type: "button", class: "principal", onclick: () => executar(() => cortina.animacaoNativa(a.numero, estado.brilhoNativo), `${nomeNativa(a)} na cortina`) },
+          el("span", { class: "num" }, String(i + 1)),
+          el("span", { class: "nome" }, nomeNativa(a)),
         ),
+        el("button", {
+          type: "button",
+          class: "icone",
+          html: ICONE_LAPIS,
+          "aria-label": `Dar nome à animação ${i + 1}`,
+          onclick: async () => {
+            const novo = await pedirTexto(`Nome da animação ${i + 1}`, nomeNativa(a));
+            if (novo === null) return;
+            if (novo.trim() && novo.trim() !== a.nome) estado.nomesNativas[a.numero] = novo.trim().slice(0, 28);
+            else delete estado.nomesNativas[a.numero];
+            gravar("nomesNativas", estado.nomesNativas);
+            renderNativas();
+          },
+        }),
       ),
     ),
   );
+}
+
+const renderFiltroMovimento = segmentado(
+  $("#movimento-filtro"),
+  () => estado.filtroMovimento,
+  (v) => {
+    estado.filtroMovimento = v;
+    gravar("filtroMovimento", v);
+    mostrarPainelMovimento();
+    window.scrollTo(0, 0);
+  },
+);
+
+function mostrarPainelMovimento() {
+  $("#painel-cortina").hidden = estado.filtroMovimento !== "cortina";
+  $("#painel-ao-vivo").hidden = estado.filtroMovimento !== "ao-vivo";
+}
+
+for (const b of $$("#movimento-filtro button")) {
+  const total = b.dataset.valor === "cortina" ? ANIMACOES_CORTINA.length : ANIMACOES_MOVIMENTO.length;
+  b.textContent = `${b.textContent} · ${total}`;
+}
+mostrarPainelMovimento();
+renderFiltroMovimento();
+
+function renderMovimento() {
+  if (movimentoPronto) return;
+  movimentoPronto = true;
+  renderNativas();
   $("#controle-brilho-nativas").replaceChildren(
     slider({
       rotulo: "Brilho das animações da cortina",
@@ -790,7 +882,6 @@ function abrirDesenho(item, grade) {
   const textoResumo = el("p", { class: "nota" }, resumo(grade));
   const brilho = controleBrilhoDesenho();
   brilho.querySelector("input").addEventListener("input", () => (textoResumo.textContent = resumo(grade)));
-  let rolar = false;
   const acoes = [el("button", { type: "button", class: "botao tonal", onclick: () => abrirNoCriar(grade, item.nome) }, "Editar")];
   if (item.meu) {
     acoes.push(
@@ -812,6 +903,7 @@ function abrirDesenho(item, grade) {
   } else {
     acoes.push(el("button", { type: "button", class: "botao tonal", onclick: () => salvarNaGaleria(grade, item.nome) }, "Salvar nos meus"));
   }
+  animador.adicionar(canvas, grade, estado.movimento); // a prévia mostra o movimento escolhido
   abrirFolha(
     el(
       "div",
@@ -820,7 +912,11 @@ function abrirDesenho(item, grade) {
       canvas,
       textoResumo,
       brilho,
-      interruptor({ rotulo: "Rolar da direita para a esquerda", marcado: false, aoMudar: (v) => (rolar = v) }),
+      seletorMovimento(estado.movimento, (v) => {
+        definirMovimento(v);
+        animador.mudarDirecao(canvas, v);
+      }),
+      controleVelocidade(),
       el(
         "div",
         { class: "par-botoes" },
@@ -831,7 +927,7 @@ function abrirDesenho(item, grade) {
             class: "botao primario",
             onclick: () => {
               fecharFolha();
-              enviarGrade(grade, { rotulo: item.nome, rolar, velocidade: estado.velocidadeRolagem });
+              enviarGrade(grade, { rotulo: item.nome, movimento: estado.movimento, velocidade: estado.velocidadeRolagem });
             },
           },
           "Mostrar na cortina",
@@ -839,8 +935,8 @@ function abrirDesenho(item, grade) {
       ),
       el("div", { class: "par-botoes" }, ...acoes),
     ),
+    { aoFechar: () => animador.remover(canvas) },
   );
-  requestAnimationFrame(() => desenharGrade(canvas, grade));
 }
 
 async function salvarNaGaleria(grade, sugestao) {
@@ -911,14 +1007,8 @@ function atualizarResumoCriar() {
 
 $("#criar-envio").append(
   controleBrilhoDesenho(),
-  interruptor({
-    rotulo: "Rolar da direita para a esquerda",
-    marcado: estado.rolar,
-    aoMudar: (v) => {
-      estado.rolar = v;
-      gravar("rolar", v);
-    },
-  }),
+  seletorMovimento(estado.movimento, definirMovimento),
+  controleVelocidade(),
   resumoCriar,
   el(
     "div",
@@ -935,7 +1025,7 @@ $("#criar-envio").append(
             return;
           }
           const rotulos = { desenhar: "desenho", texto: "texto", foto: "foto" };
-          enviarGrade(grade, { rotulo: rotulos[estado.modoCriar], rolar: estado.rolar, velocidade: estado.velocidadeRolagem });
+          enviarGrade(grade, { rotulo: rotulos[estado.modoCriar], movimento: estado.movimento, velocidade: estado.velocidadeRolagem });
         },
       },
       "Mostrar na cortina",
